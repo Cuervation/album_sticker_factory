@@ -1,0 +1,565 @@
+{
+  "chapters": {
+    "01": {
+      "era_hint": "fundacion y primeros anos",
+      "base_targets": [
+        {"target_name": "Acta fundacional de San Lorenzo de Almagro", "category": "fundacion", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Padre Lorenzo Massa en los origenes del club", "category": "fundacion", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Primer escudo historico de San Lorenzo", "category": "archivo_historico", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Primer equipo representativo de San Lorenzo", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Primeras camisetas azulgranas del club", "category": "camiseta", "rarity": "especial", "priority": "media"},
+        {"target_name": "Boedo y Almagro en los inicios azulgranas", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Retrato historico del Padre Lorenzo Massa", "category": "fundacion", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Juventud fundadora de San Lorenzo en Oratorio San Antonio", "category": "fundacion", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Documentos institucionales de la fundacion azulgrana", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Postal temprana de socios fundadores de San Lorenzo", "category": "fundacion", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Primeras celebraciones barriales del club en Boedo", "category": "festejo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Imagen de archivo del nacimiento del Ciclon", "category": "archivo_historico", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Padre Lorenzo Massa", "category": "fundacion", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Adolfo Res", "category": "archivo_historico", "rarity": "rara", "priority": "media"},
+        {"name": "Federico Monti", "category": "fundacion", "rarity": "rara", "priority": "media"},
+        {"name": "Julio Lafuente", "category": "fundacion", "rarity": "especial", "priority": "media"},
+        {"name": "Arturo Allievi", "category": "fundacion", "rarity": "especial", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "oratorio San Antonio", "category": "fundacion"},
+        {"label": "primeros equipos barriales", "category": "equipo"},
+        {"label": "primeras camisetas azulgranas", "category": "camiseta"},
+        {"label": "archivo institucional de comienzos del siglo XX", "category": "archivo_historico"},
+        {"label": "vecinos de Boedo y Almagro", "category": "hinchada"},
+        {"label": "primeros partidos amistosos del club", "category": "partido"}
+      ]
+    },
+    "02": {
+      "era_hint": "viejo gasometro y boedo",
+      "base_targets": [
+        {"target_name": "Vista exterior del Viejo Gasometro", "category": "estadio", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Tribunas llenas del Viejo Gasometro", "category": "hinchada", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Avenida La Plata y el Gasometro historico", "category": "estadio", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Postal historica del estadio de Boedo", "category": "estadio", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Hinchada azulgrana en el Viejo Gasometro", "category": "hinchada", "rarity": "especial", "priority": "alta"},
+        {"target_name": "Cabeceras y populares del Viejo Gasometro", "category": "estadio", "rarity": "especial", "priority": "media"},
+        {"target_name": "Ingreso de equipos al campo en el Viejo Gasometro", "category": "partido", "rarity": "especial", "priority": "media"},
+        {"target_name": "Vista aerea del Gasometro de Avenida La Plata", "category": "estadio", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Partido nocturno en el Viejo Gasometro", "category": "partido", "rarity": "especial", "priority": "media"},
+        {"target_name": "Banderas y bombos en la tribuna azulgrana de Boedo", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Fachada historica del Viejo Gasometro", "category": "estadio", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Archivo fotografico del Gasometro en dia de partido", "category": "archivo_historico", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Viejo Gasometro", "category": "estadio", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Avenida La Plata", "category": "estadio", "rarity": "rara", "priority": "alta"},
+        {"name": "Boedo", "category": "vuelta_boedo", "rarity": "rara", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "tribunas historicas del Gasometro", "category": "estadio"},
+        {"label": "hinchada azulgrana en Boedo", "category": "hinchada"},
+        {"label": "partidos clasicos en el Viejo Gasometro", "category": "partido"},
+        {"label": "postales antiguas de Avenida La Plata", "category": "archivo_historico"},
+        {"label": "entrada principal del estadio", "category": "estadio"},
+        {"label": "vida barrial alrededor del Gasometro", "category": "archivo_historico"}
+      ]
+    },
+    "03": {
+      "era_hint": "primeras glorias y consolidacion",
+      "base_targets": [
+        {"target_name": "Primeros planteles campeones de San Lorenzo", "category": "equipo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Imagen de celebracion de una primera gloria azulgrana", "category": "festejo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Formacion historica de San Lorenzo en sus primeros titulos", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Capitan azulgrana levantando trofeo en las primeras glorias", "category": "campeonato", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Camiseta historica de San Lorenzo en era de primeras glorias", "category": "camiseta", "rarity": "especial", "priority": "media"},
+        {"target_name": "Hinchada celebrando una conquista temprana", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Recorte periodistico de una primera gloria de San Lorenzo", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Plantel azulgrana de epoca en foto oficial", "category": "equipo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Partido clave de las primeras glorias azulgranas", "category": "partido", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Trofeo historico asociado a primeras glorias", "category": "campeonato", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Archivo grafico de festejos tempranos de San Lorenzo", "category": "festejo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Postal azulgrana de consolidacion en Primera Division", "category": "archivo_historico", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Rene Pontoni", "category": "jugador", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Armando Farro", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Rinaldo Martino", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Tucho Mendez", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Blazina", "category": "jugador", "rarity": "especial", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "dupla ofensiva historica", "category": "jugador"},
+        {"label": "festejos de titulos tempranos", "category": "festejo"},
+        {"label": "partidos de consolidacion en primera", "category": "partido"},
+        {"label": "trofeos de la era de primeras glorias", "category": "campeonato"},
+        {"label": "archivo periodistico de los anos cuarenta y cincuenta", "category": "archivo_historico"},
+        {"label": "planteles emblematicos del inicio ganador", "category": "equipo"}
+      ]
+    },
+    "04": {
+      "era_hint": "la santisima trinidad",
+      "base_targets": [
+        {"target_name": "La Santisima Trinidad ofensiva de San Lorenzo", "category": "equipo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Silueta clasica de Martino Pontoni Farro", "category": "equipo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Rene Pontoni en accion con San Lorenzo", "category": "jugador", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Rinaldo Martino en jugada ofensiva azulgrana", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Armando Farro en ataque del Ciclon", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Formacion de San Lorenzo con la Santisima Trinidad", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Festejo de gol de la delantera legendaria", "category": "gol", "rarity": "rara", "priority": "media"},
+        {"target_name": "Retrato historico de Rene Pontoni", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Archivo de partido con la Santisima Trinidad en cancha", "category": "partido", "rarity": "especial", "priority": "media"},
+        {"target_name": "Recorte periodistico sobre la delantera azulgrana", "category": "archivo_historico", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Rene Pontoni", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Rinaldo Martino", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Armando Farro", "category": "idolo", "rarity": "epica", "priority": "alta"}
+      ],
+      "themes": [
+        {"label": "delantera historica de los anos cuarenta", "category": "equipo"},
+        {"label": "jugadas asociadas a Pontoni Martino y Farro", "category": "jugador"},
+        {"label": "goles emblematicos de la Santisima Trinidad", "category": "gol"},
+        {"label": "fotos de celebracion de la delantera azulgrana", "category": "festejo"},
+        {"label": "archivo de cronicas futbolisticas de la epoca", "category": "archivo_historico"},
+        {"label": "alineacion del Ciclon en dias de gloria ofensiva", "category": "equipo"}
+      ]
+    },
+    "05": {
+      "era_hint": "los carasucias",
+      "base_targets": [
+        {"target_name": "Los Carasucias de San Lorenzo en foto de equipo", "category": "equipo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Victorio Cocco en etapa de Los Carasucias", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Fernando Arean en ataque azulgrana", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Roberto Telch en el mediocampo de San Lorenzo", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Ruben Ayala en jugada ofensiva con el Ciclon", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Hector Veira en los Carasucias", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"target_name": "Postal historica de Los Carasucias", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Festejo azulgrana de la era Carasucias", "category": "festejo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Partido representativo de Los Carasucias", "category": "partido", "rarity": "especial", "priority": "media"},
+        {"target_name": "Camiseta de San Lorenzo en la etapa Carasucias", "category": "camiseta", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Victorio Cocco", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Roberto Telch", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Ruben Ayala", "category": "idolo", "rarity": "rara", "priority": "alta"},
+        {"name": "Hector Veira", "category": "idolo", "rarity": "rara", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "juveniles ofensivos de los anos sesenta", "category": "equipo"},
+        {"label": "archivo de gambetas y goles de Los Carasucias", "category": "gol"},
+        {"label": "fotos de entrenamiento de la era Carasucias", "category": "archivo_historico"},
+        {"label": "alineaciones historicas con Cocco y Telch", "category": "equipo"},
+        {"label": "hinchada celebrando al equipo joven", "category": "hinchada"},
+        {"label": "cronicas periodisticas de Los Carasucias", "category": "archivo_historico"}
+      ]
+    },
+    "06": {
+      "era_hint": "los matadores 1968",
+      "base_targets": [
+        {"target_name": "Los Matadores campeones de 1968", "category": "campeonato", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Plantel completo de Los Matadores", "category": "equipo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Jose Albrecht liderando Los Matadores", "category": "jugador", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Roberto Telch en el equipo campeon de 1968", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Pedro Gonzalez en accion con Los Matadores", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Victorio Cocco en la conquista de 1968", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Festejos del titulo invicto de 1968", "category": "festejo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Formacion titular de Los Matadores", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Camiseta de San Lorenzo campeon 1968", "category": "camiseta", "rarity": "especial", "priority": "media"},
+        {"target_name": "Gol representativo de Los Matadores en 1968", "category": "gol", "rarity": "rara", "priority": "media"},
+        {"target_name": "Cronica grafica del campeonato invicto", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Hinchada festejando el titulo de Los Matadores", "category": "hinchada", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Jose Albrecht", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Ruben Ayala", "category": "idolo", "rarity": "rara", "priority": "alta"},
+        {"name": "Victorio Cocco", "category": "idolo", "rarity": "rara", "priority": "alta"},
+        {"name": "Roberto Telch", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Pedro Gonzalez", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Toto Lorenzo", "category": "tecnico", "rarity": "epica", "priority": "alta"}
+      ],
+      "themes": [
+        {"label": "titulo invicto de 1968", "category": "campeonato"},
+        {"label": "duelos decisivos del Metropolitano 1968", "category": "partido"},
+        {"label": "defensa y mediocampo de Los Matadores", "category": "equipo"},
+        {"label": "fotos de celebracion del plantel campeon", "category": "festejo"},
+        {"label": "archivo periodistico del equipo de 1968", "category": "archivo_historico"},
+        {"label": "hinchada azulgrana en la campana invicta", "category": "hinchada"}
+      ]
+    },
+    "07": {
+      "era_hint": "regreso y camboyanos",
+      "base_targets": [
+        {"target_name": "Regreso de San Lorenzo a Primera Division", "category": "campeonato", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Los Camboyanos de San Lorenzo en foto de equipo", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Plantel azulgrana del regreso", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Festejos por el regreso de San Lorenzo", "category": "festejo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Partido simbolico del regreso del Ciclon", "category": "partido", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Postal de hinchas azulgranas en el regreso", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Camiseta de San Lorenzo en epoca de Los Camboyanos", "category": "camiseta", "rarity": "especial", "priority": "media"},
+        {"target_name": "Archivo periodistico del retorno azulgrana", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Formacion de Los Camboyanos", "category": "equipo", "rarity": "rara", "priority": "media"},
+        {"target_name": "Gol recordado del ciclo del regreso", "category": "gol", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Oscar Passet", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Nestor Gorosito", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Walter Perazzo", "category": "jugador", "rarity": "especial", "priority": "media"},
+        {"name": "Jorge Borelli", "category": "jugador", "rarity": "especial", "priority": "media"},
+        {"name": "Ruben Dario Insua", "category": "idolo", "rarity": "epica", "priority": "alta"}
+      ],
+      "themes": [
+        {"label": "partidos de ascenso y regreso", "category": "partido"},
+        {"label": "festejos en Boedo por el retorno", "category": "festejo"},
+        {"label": "archivo fotografico de Los Camboyanos", "category": "archivo_historico"},
+        {"label": "hinchada acompanando el regreso", "category": "hinchada"},
+        {"label": "uniformes del ciclo de retorno", "category": "camiseta"},
+        {"label": "goles clave del equipo del regreso", "category": "gol"}
+      ]
+    },
+    "08": {
+      "era_hint": "campeon 1995",
+      "base_targets": [
+        {"target_name": "San Lorenzo campeon del Clausura 1995", "category": "campeonato", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Hector Beto Acosta en el titulo 1995", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Plantel campeon de San Lorenzo 1995", "category": "equipo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Festejo del Clausura 1995 en el Nuevo Gasometro", "category": "festejo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Nestor Gorosito en el equipo campeon 1995", "category": "idolo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Oscar Ruggeri en San Lorenzo campeon 1995", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"target_name": "Gol emblematico del Clausura 1995", "category": "gol", "rarity": "rara", "priority": "media"},
+        {"target_name": "Formacion titular del campeon 1995", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Hinchada de San Lorenzo celebrando el Clausura 1995", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Camiseta azulgrana del campeonato 1995", "category": "camiseta", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Hector Beto Acosta", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Nestor Gorosito", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Oscar Ruggeri", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Jorge Borelli", "category": "jugador", "rarity": "especial", "priority": "media"},
+        {"name": "Fernando Galetto", "category": "jugador", "rarity": "especial", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "partidos clave del Clausura 1995", "category": "partido"},
+        {"label": "goles de Beto Acosta en 1995", "category": "gol"},
+        {"label": "festejos azulgranas por el fin de la espera", "category": "festejo"},
+        {"label": "archivo periodistico del campeon 1995", "category": "archivo_historico"},
+        {"label": "hinchada en el Nuevo Gasometro en 1995", "category": "hinchada"},
+        {"label": "formaciones del plantel campeon", "category": "equipo"}
+      ]
+    },
+    "09": {
+      "era_hint": "equipo record 2001",
+      "base_targets": [
+        {"target_name": "San Lorenzo campeon del Clausura 2001", "category": "campeonato", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Equipo record invicto del Clausura 2001", "category": "equipo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Manuel Pellegrini como tecnico del campeon 2001", "category": "tecnico", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Sebastian Saja en la campana de 2001", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Alberto Acosta en el Clausura 2001", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Leandro Romagnoli en el equipo record", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Festejos del titulo invicto en 2001", "category": "festejo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Alineacion titular del equipo record", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Gol destacado del Clausura 2001", "category": "gol", "rarity": "rara", "priority": "media"},
+        {"target_name": "Hinchada azulgrana en la campana invicta 2001", "category": "hinchada", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Manuel Pellegrini", "category": "tecnico", "rarity": "epica", "priority": "alta"},
+        {"name": "Leandro Romagnoli", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Alberto Acosta", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Sebastian Saja", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Fabricio Coloccini", "category": "jugador", "rarity": "rara", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "rachas invictas del Clausura 2001", "category": "campeonato"},
+        {"label": "partidos clave del equipo record", "category": "partido"},
+        {"label": "festejos del campeonato 2001", "category": "festejo"},
+        {"label": "archivo periodistico de la campana invicta", "category": "archivo_historico"},
+        {"label": "goles de Romagnoli y Acosta", "category": "gol"},
+        {"label": "formaciones del ciclo Pellegrini", "category": "equipo"}
+      ]
+    },
+    "10": {
+      "era_hint": "primeras copas internacionales",
+      "base_targets": [
+        {"target_name": "San Lorenzo campeon de la Copa Sudamericana 2002", "category": "copa", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "San Lorenzo campeon de la Copa Mercosur 2001", "category": "copa", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Leandro Romagnoli en torneos internacionales tempranos", "category": "idolo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Alberto Acosta en la etapa de primeras copas", "category": "idolo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Manuel Pellegrini y el salto internacional azulgrana", "category": "tecnico", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Festejos de la Sudamericana 2002", "category": "festejo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Plantel de San Lorenzo campeon internacional", "category": "equipo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Levantamiento de trofeo internacional azulgrana", "category": "copa", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Partido definitorio de una primera copa internacional", "category": "partido", "rarity": "rara", "priority": "media"},
+        {"target_name": "Archivo grafico de la consagracion internacional", "category": "archivo_historico", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Leandro Romagnoli", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Alberto Acosta", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Sebastian Saja", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Manuel Pellegrini", "category": "tecnico", "rarity": "rara", "priority": "alta"},
+        {"name": "Pablo Michelini", "category": "jugador", "rarity": "especial", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "finales internacionales de comienzos de los 2000", "category": "copa"},
+        {"label": "festejos continentales del Ciclon", "category": "festejo"},
+        {"label": "goles clave en copas internacionales", "category": "gol"},
+        {"label": "partidos de copa en el Nuevo Gasometro", "category": "partido"},
+        {"label": "archivo periodistico de las primeras copas", "category": "archivo_historico"},
+        {"label": "planteles de San Lorenzo en torneos Conmebol", "category": "equipo"}
+      ]
+    },
+    "11": {
+      "era_hint": "ramon 2007",
+      "base_targets": [
+        {"target_name": "Ramon Diaz campeon con San Lorenzo en 2007", "category": "tecnico", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "San Lorenzo campeon del Clausura 2007", "category": "campeonato", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Plantel campeon azulgrana 2007", "category": "equipo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Andres DAlessandro en San Lorenzo 2007", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Ezequiel Lavezzi en el campeon 2007", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Cristian Tula en la campana del Clausura 2007", "category": "jugador", "rarity": "especial", "priority": "media"},
+        {"target_name": "Festejos del titulo con Ramon Diaz", "category": "festejo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Partido clave del Clausura 2007", "category": "partido", "rarity": "rara", "priority": "media"},
+        {"target_name": "Hinchada azulgrana celebrando el campeonato 2007", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Camiseta de San Lorenzo en el ciclo Ramon 2007", "category": "camiseta", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Ramon Diaz", "category": "tecnico", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Andres DAlessandro", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"name": "Ezequiel Lavezzi", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"name": "Cristian Tula", "category": "jugador", "rarity": "especial", "priority": "media"},
+        {"name": "Aureliano Torres", "category": "jugador", "rarity": "especial", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "partidos decisivos del Clausura 2007", "category": "partido"},
+        {"label": "festejos del campeon de Ramon", "category": "festejo"},
+        {"label": "goles de la campana 2007", "category": "gol"},
+        {"label": "archivo periodistico del ciclo Ramon Diaz", "category": "archivo_historico"},
+        {"label": "formaciones del plantel campeon", "category": "equipo"},
+        {"label": "hinchada en el Nuevo Gasometro en 2007", "category": "hinchada"}
+      ]
+    },
+    "12": {
+      "era_hint": "sufrimiento y gloria 2012 2013",
+      "base_targets": [
+        {"target_name": "San Lorenzo en la lucha por la permanencia 2012", "category": "partido", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Juan Antonio Pizzi en la reconstruccion azulgrana", "category": "tecnico", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Ignacio Piatti en la etapa 2012 2013", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Angel Correa en los anos de despegue", "category": "jugador", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Nestor Ortigoza como referente del mediocampo", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Partido simbolico del cambio de rumbo en 2013", "category": "partido", "rarity": "rara", "priority": "media"},
+        {"target_name": "Festejo azulgrana tras un triunfo clave en 2013", "category": "festejo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Hinchada empujando al equipo en la adversidad", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Archivo periodistico del sufrimiento a la gloria", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Camiseta de San Lorenzo en la transicion 2012 2013", "category": "camiseta", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Juan Antonio Pizzi", "category": "tecnico", "rarity": "rara", "priority": "alta"},
+        {"name": "Ignacio Piatti", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Angel Correa", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Nestor Ortigoza", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Pablo Migliore", "category": "jugador", "rarity": "rara", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "partidos de permanencia y reconstruccion", "category": "partido"},
+        {"label": "goles claves para salir del fondo", "category": "gol"},
+        {"label": "festejos de victorias determinantes", "category": "festejo"},
+        {"label": "archivo periodistico de 2012 y 2013", "category": "archivo_historico"},
+        {"label": "hinchada azulgrana en momentos de tension", "category": "hinchada"},
+        {"label": "formaciones del equipo de Pizzi", "category": "equipo"}
+      ]
+    },
+    "13": {
+      "era_hint": "libertadores 2014",
+      "base_targets": [
+        {"target_name": "Plantel campeon de la Libertadores 2014", "category": "copa", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Edgardo Bauza campeon de America con San Lorenzo", "category": "tecnico", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Nestor Ortigoza y el penal de la final 2014", "category": "gol", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Leandro Romagnoli levantando la Copa Libertadores", "category": "copa", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Sebastian Torrico en la campana de 2014", "category": "jugador", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Festejos en el Nuevo Gasometro por la Libertadores", "category": "festejo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Ignacio Piatti en la Libertadores 2014", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Mauro Matos en la final de la Libertadores", "category": "jugador", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Partido final de la Libertadores 2014 en Boedo", "category": "partido", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Camiseta de San Lorenzo campeon de America 2014", "category": "camiseta", "rarity": "rara", "priority": "media"},
+        {"target_name": "Hinchada azulgrana en noche de final continental", "category": "hinchada", "rarity": "rara", "priority": "media"},
+        {"target_name": "Trofeo de la Libertadores con los colores azulgranas", "category": "copa", "rarity": "epica", "priority": "alta"}
+      ],
+      "named_entities": [
+        {"name": "Edgardo Bauza", "category": "tecnico", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Leandro Romagnoli", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Nestor Ortigoza", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Sebastian Torrico", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Ignacio Piatti", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Mauro Matos", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Julio Buffarini", "category": "jugador", "rarity": "rara", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "fase de grupos de la Libertadores 2014", "category": "partido"},
+        {"label": "eliminatorias rumbo a la final", "category": "partido"},
+        {"label": "festejos de campeon de America", "category": "festejo"},
+        {"label": "goles decisivos de la campana", "category": "gol"},
+        {"label": "archivo periodistico de la Libertadores 2014", "category": "archivo_historico"},
+        {"label": "hinchada del Ciclon en noches de copa", "category": "hinchada"}
+      ]
+    },
+    "14": {
+      "era_hint": "supercopa y anos recientes",
+      "base_targets": [
+        {"target_name": "San Lorenzo campeon de la Supercopa Argentina 2015", "category": "copa", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Festejo de la Supercopa Argentina azulgrana", "category": "festejo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Plantel de San Lorenzo en anos recientes", "category": "equipo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Partido de Supercopa con San Lorenzo campeon", "category": "partido", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Leandro Romagnoli en sus ultimos anos en San Lorenzo", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Nestor Ortigoza en ciclos recientes azulgranas", "category": "idolo", "rarity": "rara", "priority": "media"},
+        {"target_name": "Hinchada de San Lorenzo en finales recientes", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Camiseta de San Lorenzo en la era post Libertadores", "category": "camiseta", "rarity": "especial", "priority": "media"},
+        {"target_name": "Archivo grafico de torneos recientes", "category": "archivo_historico", "rarity": "especial", "priority": "media"},
+        {"target_name": "Gol destacado de San Lorenzo en Supercopa", "category": "gol", "rarity": "rara", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Leandro Romagnoli", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Nestor Ortigoza", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Nicolas Blandi", "category": "jugador", "rarity": "rara", "priority": "media"},
+        {"name": "Sebastian Blanco", "category": "jugador", "rarity": "especial", "priority": "media"},
+        {"name": "Pablo Guede", "category": "tecnico", "rarity": "especial", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "supercopa argentina 2015", "category": "copa"},
+        {"label": "finales recientes del Ciclon", "category": "partido"},
+        {"label": "festejos de titulos de la decada de 2010", "category": "festejo"},
+        {"label": "archivo de planteles recientes", "category": "archivo_historico"},
+        {"label": "hinchada azulgrana en partidos internacionales recientes", "category": "hinchada"},
+        {"label": "goles destacados de anos recientes", "category": "gol"}
+      ]
+    },
+    "15": {
+      "era_hint": "idolos eternos",
+      "base_targets": [
+        {"target_name": "Jose Sanfilippo", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Leandro Romagnoli", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Alberto Acosta", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Hector Scotta", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Ruben Dario Insua", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Sergio Villar", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Rene Pontoni", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Norberto Boggio", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Nestor Pipo Gorosito", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Victorio Cocco", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Roberto Telch", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Tucho Mendez", "category": "idolo", "rarity": "rara", "priority": "media"},
+        {"target_name": "Rinaldo Martino", "category": "idolo", "rarity": "rara", "priority": "media"},
+        {"target_name": "Armando Farro", "category": "idolo", "rarity": "rara", "priority": "media"},
+        {"target_name": "Padre Lorenzo Massa como idolo institucional", "category": "idolo", "rarity": "legendaria", "priority": "alta"}
+      ],
+      "named_entities": [
+        {"name": "Jose Sanfilippo", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Leandro Romagnoli", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Alberto Acosta", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Hector Scotta", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Ruben Dario Insua", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Sergio Villar", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Rene Pontoni", "category": "idolo", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Norberto Boggio", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Nestor Pipo Gorosito", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Victorio Cocco", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Roberto Telch", "category": "idolo", "rarity": "epica", "priority": "alta"},
+        {"name": "Toto Lorenzo", "category": "tecnico", "rarity": "epica", "priority": "alta"},
+        {"name": "Edgardo Bauza", "category": "tecnico", "rarity": "epica", "priority": "alta"},
+        {"name": "Ramon Diaz", "category": "tecnico", "rarity": "epica", "priority": "alta"}
+      ],
+      "themes": [
+        {"label": "retratos oficiales de idolos historicos", "category": "idolo"},
+        {"label": "goles memorables de idolos azulgranas", "category": "gol"},
+        {"label": "festejos de idolos con la hinchada", "category": "festejo"},
+        {"label": "camisetas iconicas usadas por idolos", "category": "camiseta"},
+        {"label": "partidos emblematicos de referentes del club", "category": "partido"},
+        {"label": "archivo periodistico sobre idolos eternos", "category": "archivo_historico"}
+      ]
+    },
+    "16": {
+      "era_hint": "boedo vuelve",
+      "base_targets": [
+        {"target_name": "Movilizacion de socios por la Vuelta a Boedo", "category": "vuelta_boedo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Acto por la restitucion historica en Avenida La Plata", "category": "vuelta_boedo", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Banderas de la Vuelta a Boedo", "category": "hinchada", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Marcha azulgrana por Boedo vuelve", "category": "vuelta_boedo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Socios de San Lorenzo en jornada historica por Boedo", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Avenida La Plata en la campaña por la vuelta", "category": "vuelta_boedo", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Archivo fotografico de la ley de restitucion historica", "category": "archivo_historico", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Festejo azulgrana por avances de Boedo vuelve", "category": "festejo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Escenario con hinchas en acto de Boedo vuelve", "category": "vuelta_boedo", "rarity": "especial", "priority": "media"},
+        {"target_name": "Postal de familias cuervas en la Vuelta a Boedo", "category": "hinchada", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Subcomision del Hincha", "category": "vuelta_boedo", "rarity": "rara", "priority": "media"},
+        {"name": "socios autoconvocados de San Lorenzo", "category": "hinchada", "rarity": "rara", "priority": "media"},
+        {"name": "Avenida La Plata", "category": "vuelta_boedo", "rarity": "epica", "priority": "alta"}
+      ],
+      "themes": [
+        {"label": "manifestaciones por la restitucion historica", "category": "vuelta_boedo"},
+        {"label": "banderas y pancartas por Boedo", "category": "hinchada"},
+        {"label": "actos institucionales por la vuelta", "category": "vuelta_boedo"},
+        {"label": "festejos populares del movimiento azulgrana", "category": "festejo"},
+        {"label": "archivo periodistico de la causa Boedo vuelve", "category": "archivo_historico"},
+        {"label": "familias cuervas en movilizaciones historicas", "category": "hinchada"}
+      ]
+    },
+    "17": {
+      "era_hint": "otros deportes azulgranas",
+      "base_targets": [
+        {"target_name": "Basquet de San Lorenzo campeon nacional", "category": "otro_deporte", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Voley de San Lorenzo en competencia oficial", "category": "otro_deporte", "rarity": "especial", "priority": "media"},
+        {"target_name": "Futsal de San Lorenzo en torneo AFA", "category": "otro_deporte", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Handball azulgrana en jornada de liga", "category": "otro_deporte", "rarity": "especial", "priority": "media"},
+        {"target_name": "Hockey de San Lorenzo representando al club", "category": "otro_deporte", "rarity": "especial", "priority": "media"},
+        {"target_name": "Plantel de basquet azulgrana en celebracion", "category": "otro_deporte", "rarity": "rara", "priority": "alta"},
+        {"target_name": "Trofeo de otro deporte ganado por San Lorenzo", "category": "copa", "rarity": "rara", "priority": "media"},
+        {"target_name": "Hinchada alentando al basquet azulgrana", "category": "hinchada", "rarity": "especial", "priority": "media"},
+        {"target_name": "Camiseta de basquet de San Lorenzo", "category": "camiseta", "rarity": "especial", "priority": "media"},
+        {"target_name": "Archivo historico de disciplinas azulgranas", "category": "archivo_historico", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "basquet de San Lorenzo", "category": "otro_deporte", "rarity": "epica", "priority": "alta"},
+        {"name": "futsal de San Lorenzo", "category": "otro_deporte", "rarity": "rara", "priority": "alta"},
+        {"name": "voley de San Lorenzo", "category": "otro_deporte", "rarity": "especial", "priority": "media"},
+        {"name": "handball de San Lorenzo", "category": "otro_deporte", "rarity": "especial", "priority": "media"},
+        {"name": "hockey de San Lorenzo", "category": "otro_deporte", "rarity": "especial", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "equipos campeones en deportes federados", "category": "otro_deporte"},
+        {"label": "festejos de titulos en basquet y futsal", "category": "festejo"},
+        {"label": "partidos destacados de otras disciplinas", "category": "partido"},
+        {"label": "archivo periodistico de deportes azulgranas", "category": "archivo_historico"},
+        {"label": "hinchada acompanando al polideportivo", "category": "hinchada"},
+        {"label": "camisetas y escudos en otras disciplinas", "category": "camiseta"}
+      ]
+    },
+    "18": {
+      "era_hint": "figuritas legendarias y miticas",
+      "base_targets": [
+        {"target_name": "Ilustracion mitica del Ciclon en clave retro", "category": "mitica", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Escena legendaria de San Lorenzo estilo archivo", "category": "mitica", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Composicion historica de idolos de distintas epocas", "category": "mitica", "rarity": "legendaria", "priority": "alta"},
+        {"target_name": "Postal mitica del Viejo Gasometro y la hinchada", "category": "mitica", "rarity": "epica", "priority": "alta"},
+        {"target_name": "Montaje de copas y glorias azulgranas", "category": "mitica", "rarity": "rara", "priority": "media"},
+        {"target_name": "Imagen simbolica de Boedo vuelve con colores del club", "category": "mitica", "rarity": "rara", "priority": "media"},
+        {"target_name": "Retrato iconico de capitan azulgrana levantando trofeo", "category": "mitica", "rarity": "rara", "priority": "media"},
+        {"target_name": "Archivo artistico de camisetas historicas de San Lorenzo", "category": "camiseta", "rarity": "especial", "priority": "media"},
+        {"target_name": "Hinchada azulgrana en version de poster legendario", "category": "mitica", "rarity": "especial", "priority": "media"},
+        {"target_name": "Escudo de San Lorenzo en composicion historica", "category": "archivo_historico", "rarity": "especial", "priority": "media"}
+      ],
+      "named_entities": [
+        {"name": "Leandro Romagnoli", "category": "mitica", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Jose Sanfilippo", "category": "mitica", "rarity": "legendaria", "priority": "alta"},
+        {"name": "Nestor Ortigoza", "category": "mitica", "rarity": "epica", "priority": "alta"},
+        {"name": "Sebastian Torrico", "category": "mitica", "rarity": "epica", "priority": "media"},
+        {"name": "Hector Scotta", "category": "mitica", "rarity": "epica", "priority": "media"}
+      ],
+      "themes": [
+        {"label": "collage de glorias historicas azulgranas", "category": "mitica"},
+        {"label": "posters retro de San Lorenzo", "category": "mitica"},
+        {"label": "escenas legendarias del pueblo azulgrana", "category": "mitica"},
+        {"label": "archivo artistico de titulos y festejos", "category": "archivo_historico"},
+        {"label": "iconografia del Ciclon en Boedo", "category": "mitica"},
+        {"label": "homenajes visuales a idolos eternos", "category": "mitica"}
+      ]
+    }
+  }
+}
+

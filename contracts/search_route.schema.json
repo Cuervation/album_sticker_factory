@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SearchRoute",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "route_id",
+    "query_id",
+    "sticker_id",
+    "provider",
+    "priority",
+    "status",
+    "reason"
+  ],
+  "properties": {
+    "route_id": { "type": "string", "minLength": 1 },
+    "query_id": { "type": "string", "minLength": 1 },
+    "sticker_id": { "type": "string", "minLength": 1 },
+    "provider": {
+      "type": "string",
+      "enum": ["local_folder", "wikimedia", "general_web", "image_search", "webpage"]
+    },
+    "priority": { "type": "integer", "minimum": 1 },
+    "status": { "type": "string", "enum": ["pending", "routed", "skipped", "failed"] },
+    "reason": { "type": "string" }
+  }
+}
+

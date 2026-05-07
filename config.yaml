@@ -1,0 +1,158 @@
+llm:
+  enabled: false
+  use_for_curator: false
+  use_for_query_generation: false
+  use_for_search_router: false
+  use_for_semantic_review: false
+  use_for_report: false
+  max_llm_calls_per_run: 0
+
+pipeline:
+  max_chapters_per_run: 18
+  max_stickers_per_chapter: 40
+  max_queries_per_sticker: 5
+  max_images_per_query: 8
+  max_downloads_per_sticker: 12
+  auto_crop: true
+  auto_export_without_review: false
+
+quality:
+  min_width: 400
+  min_height: 400
+  reject_blurry: true
+  reject_duplicates: true
+
+review:
+  require_manual_approval: true
+  html_report_path: reports/review_candidates.html
+  decisions_csv_path: data/review_decisions.csv
+  default_reviewer: local_user
+  allow_remote_image_preview: true
+
+output:
+  final_size_px: 800
+  format: webp
+
+search_routing:
+  enabled: true
+  providers:
+    local_folder:
+      enabled: true
+      priority: 1
+    wikimedia:
+      enabled: true
+      priority: 2
+    general_web:
+      enabled: true
+      priority: 3
+    image_search:
+      enabled: true
+      priority: 4
+    webpage:
+      enabled: true
+      priority: 5
+  max_routes_per_query: 4
+
+local_sources:
+  local_images_dir: input/local_images
+  allowed_extensions:
+    - .jpg
+    - .jpeg
+    - .png
+    - .webp
+
+search_execution:
+  enabled: true
+  execute_providers:
+    local_folder: true
+    wikimedia: true
+    general_web: false
+    image_search: false
+    webpage: false
+  max_routes_per_run: 20
+  dry_run: false
+
+external_search:
+  enabled: true
+  allow_internet: true
+  allowed_real_providers:
+    - wikimedia
+  user_agent: "album_sticker_factory/0.1 local research tool"
+  timeout_seconds: 15
+  max_results_per_route: 5
+  max_routes_per_run: 20
+
+wikimedia:
+  max_query_variants_per_route: 5
+  stop_after_first_success: true
+  include_english_variants: true
+
+candidate_evaluation:
+  enabled: true
+  min_width: 400
+  min_height: 400
+  preferred_min_width: 800
+  preferred_min_height: 800
+  min_relevance_score: 0.15
+  require_image_url: true
+  reject_missing_dimensions: false
+  unknown_license_allowed_for_review: true
+
+candidate_preflight:
+  enabled: true
+  statuses_to_check:
+    - needs_review
+    - approved
+  allowed_providers:
+    - wikimedia
+  timeout_seconds: 15
+  max_candidates_per_run: 50
+  max_file_size_mb: 8
+  allowed_mime_prefixes:
+    - image/
+  blocked_content_types:
+    - application/pdf
+    - text/html
+  use_head_first: true
+  fallback_to_range_get: true
+  user_agent: "album_sticker_factory/0.1 local preflight tool"
+  mark_non_image_as_technical_rejected: true
+  keep_429_as_retryable: true
+
+review_safety:
+  block_approval_if_preflight_blocked: true
+  block_approval_if_preflight_retryable: true
+  block_approval_if_preflight_missing: false
+  allow_override_column: true
+  override_value: force_approved
+  require_override_note: true
+
+preflight_retry:
+  enabled: true
+  statuses_to_retry:
+    - retryable
+  max_candidates_per_run: 20
+  min_seconds_between_retries: 300
+  max_retry_attempts: 3
+  retryable_errors:
+    - http_error:429
+    - timeout
+    - url_error
+
+download:
+  enabled: true
+  approved_only: true
+  output_dir: output/raw
+  max_candidates_per_run: 10
+  timeout_seconds: 20
+  max_file_size_mb: 8
+  allowed_providers:
+    - wikimedia
+  allowed_extensions:
+    - .jpg
+    - .jpeg
+    - .png
+    - .webp
+  allowed_mime_prefixes:
+    - image/
+  user_agent: "album_sticker_factory/0.1 local download tool"

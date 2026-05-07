@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ImageCandidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "image_id",
+    "sticker_id",
+    "query_id",
+    "provider",
+    "source_page",
+    "image_url",
+    "local_path",
+    "width",
+    "height",
+    "quality_score",
+    "relevance_score",
+    "duplicate_group",
+    "license_status",
+    "status"
+  ],
+  "properties": {
+    "image_id": { "type": "string", "minLength": 1 },
+    "sticker_id": { "type": "string", "minLength": 1 },
+    "query_id": { "type": "string", "minLength": 1 },
+    "provider": { "type": "string", "minLength": 1 },
+    "source_page": { "type": "string" },
+    "image_url": { "type": "string" },
+    "local_path": { "type": "string" },
+    "executed_query": { "type": "string" },
+    "width": { "type": ["integer", "null"], "minimum": 1 },
+    "height": { "type": ["integer", "null"], "minimum": 1 },
+    "quality_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "relevance_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "duplicate_group": { "type": ["string", "null"] },
+    "license_status": {
+      "type": "string",
+      "enum": [
+        "clear",
+        "attribution_required",
+        "unknown",
+        "restricted",
+        "needs_manual_review"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "found",
+        "downloaded",
+        "technical_rejected",
+        "duplicate_rejected",
+        "semantic_rejected",
+        "processed",
+        "needs_review",
+        "approved",
+        "rejected",
+        "exported"
+      ]
+    },
+    "metadata_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "decision_reason": { "type": "string" },
+    "evaluated_at": { "type": "string" },
+    "file_sha256": { "type": "string" },
+    "file_size_bytes": { "type": "integer", "minimum": 0 },
+    "downloaded_at": { "type": "string" },
+    "download_error": { "type": "string" },
+    "preflight_status": { "type": "string", "enum": ["passed", "blocked", "retryable", "failed", "skipped"] },
+    "preflight_error": { "type": "string" },
+    "preflight_content_type": { "type": "string" },
+    "preflight_content_length": { "type": "integer", "minimum": 0 },
+    "preflight_checked_at": { "type": "string" },
+    "preflight_retry_count": { "type": "integer", "minimum": 0 },
+    "preflight_last_retry_at": { "type": "string" },
+    "retry_requested_at": { "type": "string" },
+    "retry_requested_reason": { "type": "string" },
+    "retry_forced_at": { "type": "string" },
+    "retry_forced_reason": { "type": "string" },
+    "last_retry_mode": { "type": "string", "enum": ["scheduled", "manual", "forced", ""] }
+  }
+}

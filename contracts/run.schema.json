@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "command",
+    "status",
+    "started_at",
+    "finished_at",
+    "summary_json"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "command": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "minLength": 1 },
+    "started_at": { "type": "string", "minLength": 1 },
+    "finished_at": { "type": "string", "minLength": 1 },
+    "summary_json": { "type": "string" }
+  }
+}
+

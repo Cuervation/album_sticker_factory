@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "review_id",
+    "image_id",
+    "review_status",
+    "notes",
+    "reviewed_at"
+  ],
+  "properties": {
+    "review_id": { "type": "string", "minLength": 1 },
+    "image_id": { "type": "string", "minLength": 1 },
+    "review_status": { "type": "string", "enum": ["approved", "rejected", "needs_more_info", "force_approved"] },
+    "notes": { "type": "string" },
+    "reviewed_at": { "type": "string", "minLength": 1 }
+  }
+}
