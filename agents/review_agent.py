@@ -7,6 +7,7 @@ import html
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from core import db
 from core.config import load_config
@@ -26,6 +27,7 @@ DECISION_HEADERS = [
     "image_url",
 ]
 ALLOWED_REVIEW_STATUS = {"approved", "rejected", "needs_more_info", "force_approved", ""}
+ALLOWED_REVIEW_RASTER = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
 class ReviewAgent:
@@ -71,14 +73,24 @@ class ReviewAgent:
         existing = self._load_decisions(decisions_path)
         existing_ids = set(existing.keys())
         added = 0
-        unique_candidates = []
+        counters = {"hidden_retryable": 0, "hidden_unsupported_extension": 0, "hidden_blocked": 0}
+        reviewable_candidates: list[dict[str, Any]] = []
+        hidden_candidates: list[dict[str, Any]] = []
         for candidate in candidates:
+            if not self._is_reviewable(candidate):
+                reason = self._hidden_reason(candidate)
+                counters[reason] = counters.get(reason, 0) + 1
+                hidden_candidates.append(candidate)
+                continue
             key = self._canonical_key(candidate)
             rep = canonical_map.get(key)
             if rep and str(rep["image_id"]) != str(candidate["image_id"]):
                 continue
-            unique_candidates.append(candidate)
-        for candidate in unique_candidates:
+            reviewable_candidates.append(candidate)
+
+        self._backfill_rejections(hidden_candidates)
+
+        for candidate in reviewable_candidates:
             image_id = str(candidate["image_id"])
             prev = existing.get(image_id, {})
             if image_id not in existing:
@@ -114,15 +126,22 @@ class ReviewAgent:
             for key in DECISION_HEADERS:
                 prev.setdefault(key, "")
         self._write_decisions(decisions_path, existing)
-        self._write_html_report(report_path, unique_candidates, allow_remote_preview=allow_remote_preview)
+        self._write_html_report(
+            report_path,
+            reviewable_candidates,
+            allow_remote_preview=allow_remote_preview,
+            counters=counters,
+            hidden_candidates=hidden_candidates,
+        )
 
         return {
             "status": "ok",
-            "candidates_needs_review": len(unique_candidates),
+            "candidates_needs_review": len(reviewable_candidates),
             "html_path": str(report_path),
             "decisions_csv_path": str(decisions_path),
             "decisions_existing": len(existing_ids),
             "decisions_added": added,
+            **counters,
         }
 
     def apply_reviews(self) -> dict[str, Any]:
@@ -309,9 +328,16 @@ class ReviewAgent:
         path: Path,
         candidates: list[dict[str, Any]],
         allow_remote_preview: bool,
+        counters: dict[str, int] | None = None,
+        hidden_candidates: list[dict[str, Any]] | None = None,
     ) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         cards = "\n".join(self._candidate_card(candidate, allow_remote_preview) for candidate in candidates)
+        hidden_rows = ""
+        hidden_candidates = hidden_candidates or []
+        if hidden_candidates:
+            hidden_rows = "\n".join(self._hidden_row(candidate) for candidate in hidden_candidates)
+        counters = counters or {}
         doc = f"""<!doctype html>
 <html lang="es">
 <head>
@@ -335,9 +361,14 @@ class ReviewAgent:
   <h1>Review Manual de Candidatos</h1>
   <p class="muted">Para aprobar/rechazar, editar <code>data/review_decisions.csv</code> y luego ejecutar <code>python main.py apply-reviews</code>.</p>
   <p class="muted">No se descargan imagenes en este paso. Solo vista remota por URL.</p>
-  <p><strong>Total needs_review:</strong> {len(candidates)}</p>
+  <p><strong>Total revisables:</strong> {len(candidates)}</p>
+  <p><strong>hidden_retryable:</strong> {counters.get('hidden_retryable', 0)} | <strong>hidden_unsupported_extension:</strong> {counters.get('hidden_unsupported_extension', 0)} | <strong>hidden_blocked:</strong> {counters.get('hidden_blocked', 0)}</p>
   <div class="grid">
     {cards}
+  </div>
+  <h2>No aprobables / requieren acción</h2>
+  <div class="grid">
+    {hidden_rows}
   </div>
 </body>
 </html>
@@ -348,6 +379,7 @@ class ReviewAgent:
         image_url = str(candidate.get("image_url") or "")
         source_page = str(candidate.get("source_page") or "")
         preflight_status = str(candidate.get("preflight_status") or "preflight no ejecutado")
+        ext = Path(urlparse(image_url or source_page).path).suffix.lower()
         preflight_error = str(candidate.get("preflight_error") or "")
         preflight_type = str(candidate.get("preflight_content_type") or "")
         preflight_len = str(candidate.get("preflight_content_length") or "")
@@ -370,7 +402,7 @@ class ReviewAgent:
             recommendation = "Reintentar preflight antes de aprobar"
         preview = (
             f'<img class="preview" src="{html.escape(image_url)}" alt="{html.escape(candidate["image_id"])}">'
-            if allow_remote_preview and image_url
+            if allow_remote_preview and image_url and ext in ALLOWED_REVIEW_RASTER
             else '<div class="preview"></div>'
         )
         return f"""
@@ -432,6 +464,68 @@ class ReviewAgent:
             str(row.get("image_url") or ""),
             str(row.get("source_page") or ""),
         )
+
+    @staticmethod
+    def _is_reviewable(row: dict[str, Any]) -> bool:
+        if str(row.get("status") or "") != "needs_review":
+            return False
+        if str(row.get("preflight_status") or "").lower() != "passed":
+            return False
+        ext = Path(urlparse(str(row.get("image_url") or row.get("source_page") or "")).path).suffix.lower()
+        if ext and ext not in ALLOWED_REVIEW_RASTER:
+            return False
+        ctype = str(row.get("preflight_content_type") or "").lower()
+        if ctype and ctype not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+            return False
+        return True
+
+    @staticmethod
+    def _hidden_reason(row: dict[str, Any]) -> str:
+        pf = str(row.get("preflight_status") or "").lower()
+        if pf == "retryable":
+            return "hidden_retryable"
+        if pf == "blocked":
+            return "hidden_blocked"
+        ext = Path(urlparse(str(row.get("image_url") or row.get("source_page") or "")).path).suffix.lower()
+        if ext and ext not in ALLOWED_REVIEW_RASTER:
+            return "hidden_unsupported_extension"
+        ctype = str(row.get("preflight_content_type") or "").lower()
+        if ctype and ctype not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+            return "hidden_unsupported_extension"
+        return "hidden_blocked"
+
+    def _hidden_row(self, candidate: dict[str, Any]) -> str:
+        return (
+            "<div class=\"card blocked\">"
+            f"<div class=\"kv\"><div><strong>image_id:</strong> {html.escape(str(candidate.get('image_id', '')))}</div>"
+            f"<div><strong>reason:</strong> {html.escape(self._hidden_reason(candidate))}</div>"
+            f"<div><strong>preflight_status:</strong> {html.escape(str(candidate.get('preflight_status', '')))}</div>"
+            f"<div><strong>image_url:</strong> <a href=\"{html.escape(str(candidate.get('image_url', '')))}\" target=\"_blank\" rel=\"noopener noreferrer\">link</a></div>"
+            "</div></div>"
+        )
+
+    def _backfill_rejections(self, candidates: list[dict[str, Any]]) -> None:
+        if not candidates:
+            return
+        conn = db.get_connection(self.db_path)
+        try:
+            db.create_tables(conn)
+            for candidate in candidates:
+                image_id = str(candidate.get("image_id") or "")
+                if not image_id:
+                    continue
+                ext = Path(urlparse(str(candidate.get("image_url") or candidate.get("source_page") or "")).path).suffix.lower()
+                if ext and ext not in ALLOWED_REVIEW_RASTER:
+                    db.update_candidate_preflight_result(
+                        conn,
+                        image_id,
+                        preflight_status="blocked",
+                        preflight_error="rejected_unsupported_extension_for_review",
+                        candidate_status="technical_rejected",
+                        decision_reason="rejected_unsupported_extension_for_review",
+                    )
+        finally:
+            conn.close()
 
     def _get_preflight_map(self) -> dict[str, dict[str, Any]]:
         conn = db.get_connection(self.db_path)

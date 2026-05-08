@@ -64,7 +64,7 @@ def test_review_candidates_generates_html_and_csv(tmp_path: Path, monkeypatch) -
         db.create_tables(conn)
         _seed_candidate(conn, "IMG-1")
         conn.execute(
-            "UPDATE image_candidates SET preflight_status='blocked', preflight_error='invalid_content_type:application/pdf', preflight_content_type='application/pdf' WHERE image_id='IMG-1'"
+            "UPDATE image_candidates SET preflight_status='passed', preflight_error='', preflight_content_type='image/jpeg' WHERE image_id='IMG-1'"
         )
         conn.commit()
     finally:
@@ -81,7 +81,8 @@ def test_review_candidates_generates_html_and_csv(tmp_path: Path, monkeypatch) -
     assert "https://upload.wikimedia.org/test.jpg" in html_text
     assert "https://commons.wikimedia.org/wiki/File:Test.jpg" in html_text
     assert "preflight_status" in html_text
-    assert "invalid_content_type:application/pdf" in html_text
+    assert "class=\"card\"" in html_text
+    assert "hidden_retryable" in html_text
 
     with csv_path.open("r", encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
@@ -98,6 +99,8 @@ def test_review_candidates_preserves_existing_decisions(tmp_path: Path, monkeypa
     try:
         db.create_tables(conn)
         _seed_candidate(conn, "IMG-NEW")
+        conn.execute("UPDATE image_candidates SET preflight_status='passed', preflight_content_type='image/jpeg' WHERE image_id='IMG-NEW'")
+        conn.commit()
     finally:
         conn.close()
 
@@ -138,8 +141,37 @@ def test_review_candidates_shows_one_rep_for_duplicate_media(tmp_path: Path, mon
     assert result["candidates_needs_review"] == 1
     html_path = tmp_path / "review_candidates.html"
     html_text = html_path.read_text(encoding="utf-8")
-    assert html_text.count("image_id:") == 1
+    assert html_text.count("class=\"card\"") == 1
     assert "passed" in html_text
+
+
+def test_review_candidates_hides_retryable_and_pdf(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed_candidate(conn, "IMG-PASS")
+        _seed_candidate(conn, "IMG-PDF")
+        _seed_candidate(conn, "IMG-RET")
+        conn.execute("UPDATE image_candidates SET preflight_status='passed', preflight_content_type='image/jpeg' WHERE image_id='IMG-PASS'")
+        conn.execute("UPDATE image_candidates SET preflight_status='passed', preflight_content_type='application/pdf', image_url='https://example.com/doc.pdf' WHERE image_id='IMG-PDF'")
+        conn.execute("UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429' WHERE image_id='IMG-RET'")
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr("agents.review_agent.load_config", lambda: _review_cfg(tmp_path))
+    result = ReviewAgent(db_path=db_path).review_candidates()
+    assert result["candidates_needs_review"] == 1
+    assert result["hidden_retryable"] == 1
+    assert result["hidden_unsupported_extension"] == 1
+    html_text = (tmp_path / "review_candidates.html").read_text(encoding="utf-8")
+    assert "IMG-PASS" in html_text
+    assert "IMG-PDF" in html_text
+    assert "IMG-RET" in html_text
+    assert html_text.count("class=\"card\"") == 1
+    assert "hidden_retryable" in html_text
+    assert "hidden_unsupported_extension" in html_text
 
 
 def test_apply_reviews_updates_status_and_is_idempotent(tmp_path: Path, monkeypatch) -> None:
