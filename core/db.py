@@ -1112,12 +1112,13 @@ def list_candidates_for_retry_mark(
     *,
     provider: str | None = None,
     image_id: str | None = None,
-    preflight_status: str = "retryable",
+    preflight_statuses: tuple[str, ...] = ("retryable",),
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """List existing candidates that can receive manual retry metadata."""
-    where = ["preflight_status = ?"]
-    params: list[Any] = [preflight_status]
+    placeholders = ", ".join(["?"] * len(preflight_statuses))
+    where = [f"preflight_status IN ({placeholders})"]
+    params: list[Any] = list(preflight_statuses)
     if provider:
         where.append("provider = ?")
         params.append(provider)
@@ -1154,6 +1155,36 @@ def list_candidates_for_retry_mark(
         params,
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def get_image_candidate_by_id(conn: sqlite3.Connection, image_id: str) -> dict[str, Any] | None:
+    """Get a single image candidate by image_id."""
+    row = conn.execute(
+        """
+        SELECT
+            image_id,
+            sticker_id,
+            query_id,
+            provider,
+            source_page,
+            image_url,
+            status,
+            preflight_status,
+            preflight_error,
+            preflight_content_type,
+            preflight_checked_at,
+            preflight_retry_count,
+            retry_requested_at,
+            retry_requested_reason,
+            retry_forced_at,
+            retry_forced_reason,
+            last_retry_mode
+        FROM image_candidates
+        WHERE image_id = ?
+        """,
+        (image_id,),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 def mark_candidates_retry_requested(

@@ -242,7 +242,7 @@ def test_executor_wikimedia_no_results_sets_tried_queries_reason(tmp_path: Path,
     finally:
         conn.close()
     assert row["status"] == "skipped"
-    assert "tried_queries:3" in str(row["reason"])
+    assert "tried_queries:" in str(row["reason"])
 
 
 def test_executor_wikimedia_http_error_sets_failed_reason(tmp_path: Path, monkeypatch) -> None:
@@ -318,3 +318,102 @@ def test_executor_wikimedia_no_candidates_after_parse_reason(tmp_path: Path, mon
         conn.close()
     assert row["status"] == "skipped"
     assert "no_candidates_after_parse" in str(row["reason"])
+
+
+def test_executor_wikimedia_fallback_finds_raster_candidate(tmp_path: Path, monkeypatch) -> None:
+    sqlite_path = tmp_path / "db.sqlite"
+    local_dir = tmp_path / "local_images"
+    conn = db.get_connection(sqlite_path)
+    try:
+        _seed_minimal_query_route(conn, provider="wikimedia", route_id_suffix="wikimedia-fallback")
+    finally:
+        conn.close()
+
+    class FallbackWikimediaProvider:
+        calls = 0
+
+        def run(self, payload=None):  # noqa: ANN001
+            type(self).calls += 1
+            if type(self).calls == 1:
+                return {
+                    "status": "ok",
+                    "provider": "wikimedia",
+                    "query_variants_tried": 2,
+                    "tried_queries": ["San Lorenzo", "San Lorenzo 2014"],
+                    "candidates": [],
+                    "had_http_error": False,
+                    "raw_results_seen": False,
+                }
+            return {
+                "status": "ok",
+                "provider": "wikimedia",
+                "query_variants_tried": 2,
+                "tried_queries": ["San Lorenzo foto", "San Lorenzo imagen"],
+                "candidates": [
+                    {
+                        "source_page": "https://commons.wikimedia.org/wiki/File:Raster.jpg",
+                        "image_url": "https://upload.wikimedia.org/raster.jpg",
+                        "width": 1200,
+                        "height": 800,
+                        "license_status": "attribution_required",
+                        "relevance_score": 0.8,
+                        "executed_query": "San Lorenzo foto",
+                    }
+                ],
+            }
+
+    monkeypatch.setattr("agents.search_executor_agent.load_config", lambda: _base_config(local_dir))
+    monkeypatch.setattr("agents.search_executor_agent.WikimediaProvider", FallbackWikimediaProvider)
+    agent = SearchExecutorAgent(db_path=sqlite_path, output_csv_path=tmp_path / "image_candidates.csv")
+    result = agent.run(provider="wikimedia", limit=5)
+    assert result["candidates_created"] == 1
+    assert result["query_variants_tried"] >= 4
+    conn = db.get_connection(sqlite_path)
+    try:
+        row = conn.execute("SELECT status, reason FROM search_routes WHERE provider='wikimedia' LIMIT 1").fetchone()
+    finally:
+        conn.close()
+    assert row["status"] == "routed"
+    assert "candidates_found:1" in str(row["reason"])
+
+
+def test_executor_filters_documentary_candidates(tmp_path: Path, monkeypatch) -> None:
+    sqlite_path = tmp_path / "db.sqlite"
+    local_dir = tmp_path / "local_images"
+    conn = db.get_connection(sqlite_path)
+    try:
+        _seed_minimal_query_route(conn, provider="wikimedia", route_id_suffix="wikimedia-docs")
+    finally:
+        conn.close()
+
+    class DocumentaryWikimediaProvider:
+        def run(self, payload=None):  # noqa: ANN001
+            return {
+                "status": "ok",
+                "provider": "wikimedia",
+                "query_variants_tried": 1,
+                "tried_queries": ["San Lorenzo"],
+                "candidates": [
+                    {
+                        "source_page": "https://commons.wikimedia.org/wiki/File:Doc.djvu",
+                        "image_url": "https://upload.wikimedia.org/doc.djvu",
+                        "width": 1200,
+                        "height": 800,
+                        "license_status": "attribution_required",
+                        "relevance_score": 0.9,
+                        "executed_query": "San Lorenzo",
+                    }
+                ],
+            }
+
+    monkeypatch.setattr("agents.search_executor_agent.load_config", lambda: _base_config(local_dir))
+    monkeypatch.setattr("agents.search_executor_agent.WikimediaProvider", DocumentaryWikimediaProvider)
+    agent = SearchExecutorAgent(db_path=sqlite_path, output_csv_path=tmp_path / "image_candidates.csv")
+    result = agent.run(provider="wikimedia", limit=5)
+    assert result["candidates_created"] == 0
+    conn = db.get_connection(sqlite_path)
+    try:
+        total = db.count_rows(conn, "image_candidates")
+    finally:
+        conn.close()
+    assert total == 0

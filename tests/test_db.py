@@ -94,3 +94,57 @@ def test_reviews_by_status_counts(tmp_path: Path) -> None:
     assert grouped["approved"] == 1
     assert grouped["rejected"] == 1
     assert status["reviews_count"] == 2
+
+
+def test_list_candidates_for_retry_mark_uses_preflight_status(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        db.upsert_image_candidates(
+            conn,
+            [
+                {
+                    "image_id": "IMG-RTRY",
+                    "sticker_id": "SL-01-001",
+                    "query_id": "Q-SL-01-001-01",
+                    "provider": "wikimedia",
+                    "source_page": "https://commons.wikimedia.org/wiki/File:X.jpg",
+                    "image_url": "https://example.com/x.jpg",
+                    "local_path": "",
+                    "executed_query": "San Lorenzo",
+                    "width": 1000,
+                    "height": 1000,
+                    "quality_score": None,
+                    "relevance_score": 0.5,
+                    "duplicate_group": None,
+                    "license_status": "attribution_required",
+                    "status": "found",
+                    "preflight_status": "retryable",
+                    "preflight_error": "http_error:429",
+                },
+                {
+                    "image_id": "IMG-BLK",
+                    "sticker_id": "SL-01-002",
+                    "query_id": "Q-SL-01-002-01",
+                    "provider": "wikimedia",
+                    "source_page": "https://commons.wikimedia.org/wiki/File:Y.jpg",
+                    "image_url": "https://example.com/y.jpg",
+                    "local_path": "",
+                    "executed_query": "San Lorenzo",
+                    "width": 1000,
+                    "height": 1000,
+                    "quality_score": None,
+                    "relevance_score": 0.5,
+                    "duplicate_group": None,
+                    "license_status": "attribution_required",
+                    "status": "found",
+                    "preflight_status": "blocked",
+                    "preflight_error": "unsupported_content_type:image/vnd.djvu",
+                },
+            ],
+        )
+        rows = db.list_candidates_for_retry_mark(conn, preflight_statuses=("retryable",))
+    finally:
+        conn.close()
+    assert [row["image_id"] for row in rows] == ["IMG-RTRY"]

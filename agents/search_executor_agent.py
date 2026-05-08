@@ -228,6 +228,7 @@ class SearchExecutorAgent:
             used_queries = response.get("tried_queries", [])
             collected: list[dict[str, Any]] = []
             seen_fingerprints: set[str] = set()
+            fallback_response: dict[str, Any] | None = None
 
             status = response.get("status")
             if status == "disabled":
@@ -256,6 +257,30 @@ class SearchExecutorAgent:
                 continue
 
             found = response.get("candidates", [])
+            if not found:
+                fallback_query = self._build_raster_fallback_query(route)
+                if fallback_query and fallback_query != route["query"]:
+                    fallback_response = provider_impl.run(
+                        {
+                            "allow_internet": True,
+                            "original_query": fallback_query,
+                            "target_name": route.get("target_name"),
+                            "chapter_title": route.get("chapter_title"),
+                            "category": route.get("category"),
+                            "max_query_variants": max_query_variants,
+                            "stop_after_first_success": stop_after_first_success,
+                            "include_english_variants": include_english_variants,
+                            "max_results": max_results,
+                            "timeout_seconds": timeout_seconds,
+                            "user_agent": user_agent,
+                        }
+                    )
+                    query_variants_tried += int(fallback_response.get("query_variants_tried", 0))
+                    used_queries = list(used_queries) + list(fallback_response.get("tried_queries", []))
+                    if fallback_response.get("status") == "ok":
+                        found = fallback_response.get("candidates", [])
+                    else:
+                        response = fallback_response
             for item in found:
                 image_url = str(item.get("image_url", "") or "")
                 source_page = str(item.get("source_page", "") or "")
@@ -301,11 +326,12 @@ class SearchExecutorAgent:
                     executed_query_examples.append(first_query)
                 candidate_rows.extend(collected)
             else:
-                if bool(response.get("had_http_error", False)) and not bool(
-                    response.get("had_successful_call", False)
+                source_resp = fallback_response or response
+                if bool(source_resp.get("had_http_error", False)) and not bool(
+                    source_resp.get("had_successful_call", False)
                 ):
                     route_outcomes[route["route_id"]] = ("failed", "http_error")
-                elif bool(response.get("raw_results_seen", False)):
+                elif bool(source_resp.get("raw_results_seen", False)):
                     route_outcomes[route["route_id"]] = (
                         "skipped",
                         f"no_candidates_after_parse;tried_queries:{len(used_queries)}",
@@ -410,3 +436,16 @@ class SearchExecutorAgent:
     def _is_documentary_url(image_url: str) -> bool:
         path = urlparse(image_url or "").path.lower()
         return path.endswith((".djvu", ".pdf", ".tif", ".tiff", ".svg"))
+
+    @staticmethod
+    def _build_raster_fallback_query(route: dict[str, Any]) -> str:
+        parts = [
+            str(route.get("target_name") or "").strip(),
+            str(route.get("chapter_title") or "").strip(),
+            "San Lorenzo",
+            "foto",
+            "imagen",
+        ]
+        parts = [part for part in parts if part]
+        query = " ".join(parts)
+        return " ".join(query.split())
