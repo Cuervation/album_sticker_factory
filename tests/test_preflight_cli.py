@@ -114,8 +114,14 @@ def test_cmd_force_retry_now_summary(monkeypatch, capsys) -> None:
                 "retryable": 0,
                 "failed": 0,
                 "technical_rejected": 0,
+                "skipped_by_max_retry_attempts": 1,
+                "skipped_by_retry_window": 0,
+                "skipped_by_status": 0,
+                "skipped_by_missing_url": 0,
+                "skipped_by_other_reason": 0,
                 "dry_run": True,
                 "csv_path": "data/image_candidates.csv",
+                "skip_summary": "max_retry_attempts=1",
             }
 
     monkeypatch.setattr(main, "CandidatePreflightAgent", FakeAgent)
@@ -126,6 +132,7 @@ def test_cmd_force_retry_now_summary(monkeypatch, capsys) -> None:
     assert code == 0
     assert "Force retry now complete." in out
     assert "Dry run: True" in out
+    assert "Skip summary: max_retry_attempts=1" in out
 
 
 def test_new_retry_commands_require_reason() -> None:

@@ -450,8 +450,15 @@ def cmd_force_retry_now(args: argparse.Namespace) -> int:
     print(f"- Retryable: {result['retryable']}")
     print(f"- Failed: {result['failed']}")
     print(f"- technical_rejected: {result['technical_rejected']}")
+    print(f"- skipped_by_max_retry_attempts: {result.get('skipped_by_max_retry_attempts', 0)}")
+    print(f"- skipped_by_retry_window: {result.get('skipped_by_retry_window', 0)}")
+    print(f"- skipped_by_status: {result.get('skipped_by_status', 0)}")
+    print(f"- skipped_by_missing_url: {result.get('skipped_by_missing_url', 0)}")
+    print(f"- skipped_by_other_reason: {result.get('skipped_by_other_reason', 0)}")
     print(f"- Dry run: {result['dry_run']}")
     print(f"- CSV written: {result['csv_path']}")
+    if result.get("skip_summary"):
+        print(f"- Skip summary: {result['skip_summary']}")
     print("Warning: No se descargaron imagenes; solo preflight tecnico forzado.")
     return 0
 

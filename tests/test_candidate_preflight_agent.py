@@ -85,6 +85,45 @@ def test_preflight_passed(tmp_path: Path, monkeypatch) -> None:
     assert result["passed"] == 1
 
 
+def test_preflight_allows_raster_types(tmp_path: Path, monkeypatch) -> None:
+    for content_type in ("image/png", "image/webp", "image/gif"):
+        db_path = tmp_path / f"{content_type.replace('/', '_')}.sqlite"
+        conn = db.get_connection(db_path)
+        try:
+            db.create_tables(conn)
+            _seed(conn, f"IMG-{content_type.split('/')[-1].upper()}")
+        finally:
+            conn.close()
+        monkeypatch.setattr("agents.candidate_preflight_agent.load_config", _cfg)
+        monkeypatch.setattr("agents.candidate_preflight_agent.urlopen", lambda req, timeout=0, ct=content_type: _Resp(ct))
+        result = CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / f"{content_type}.csv").run()
+        assert result["passed"] == 1
+
+
+def test_preflight_blocks_djvu_and_tiff(tmp_path: Path, monkeypatch) -> None:
+    for content_type in ("image/vnd.djvu", "image/tiff"):
+        db_path = tmp_path / f"{content_type.replace('/', '_')}.sqlite"
+        conn = db.get_connection(db_path)
+        try:
+            db.create_tables(conn)
+            _seed(conn, f"IMG-{content_type.split('/')[-1].upper()}")
+        finally:
+            conn.close()
+        monkeypatch.setattr("agents.candidate_preflight_agent.load_config", _cfg)
+        monkeypatch.setattr("agents.candidate_preflight_agent.urlopen", lambda req, timeout=0, ct=content_type: _Resp(ct))
+        result = CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / f"{content_type}.csv").run()
+        assert result["blocked"] == 1
+        conn = db.get_connection(db_path)
+        try:
+            row = conn.execute(
+                "SELECT preflight_status, preflight_error FROM image_candidates WHERE image_id LIKE 'IMG-%' ORDER BY image_id DESC LIMIT 1"
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row["preflight_status"] == "blocked"
+        assert str(row["preflight_error"]).startswith("unsupported_content_type:")
+
+
 def test_preflight_pdf_blocked_and_rejected(tmp_path: Path, monkeypatch) -> None:
     db_path = tmp_path / "db.sqlite"
     conn = db.get_connection(db_path)
@@ -103,6 +142,26 @@ def test_preflight_pdf_blocked_and_rejected(tmp_path: Path, monkeypatch) -> None
         conn.close()
     assert row["preflight_status"] == "blocked"
     assert row["status"] == "technical_rejected"
+
+
+def test_preflight_html_blocked(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed(conn, "IMG-HTML")
+    finally:
+        conn.close()
+    monkeypatch.setattr("agents.candidate_preflight_agent.load_config", _cfg)
+    monkeypatch.setattr("agents.candidate_preflight_agent.urlopen", lambda req, timeout=0: _Resp("text/html"))
+    CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / "out.csv").run()
+    conn = db.get_connection(db_path)
+    try:
+        row = conn.execute("SELECT preflight_status, preflight_error FROM image_candidates WHERE image_id='IMG-HTML'").fetchone()
+    finally:
+        conn.close()
+    assert row["preflight_status"] == "blocked"
+    assert row["preflight_error"].startswith("unsupported_content_type:")
 
 
 def test_preflight_429_retryable(tmp_path: Path, monkeypatch) -> None:
@@ -327,6 +386,42 @@ def test_force_retry_now_bypasses_window_not_max_attempts(tmp_path: Path, monkey
     assert f1["last_retry_mode"] == "forced"
     assert f2["preflight_status"] == "retryable"
     assert f2["preflight_retry_count"] == 3
+    assert result["skipped_by_max_retry_attempts"] == 1
+
+
+def test_force_retry_now_image_id_targets_exact_candidate(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed(conn, "IMG-G1", status="needs_review")
+        _seed(conn, "IMG-G2", status="needs_review")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429', preflight_retry_count=0 WHERE image_id='IMG-G1'"
+        )
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429', preflight_retry_count=0 WHERE image_id='IMG-G2'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    monkeypatch.setattr("agents.candidate_preflight_agent.load_config", _cfg)
+    monkeypatch.setattr("agents.candidate_preflight_agent.urlopen", lambda req, timeout=0: _Resp("image/jpeg", "10"))
+    result = CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / "out.csv").force_retry_now(
+        provider="wikimedia",
+        image_id="IMG-G1",
+        reason="manual force",
+    )
+    assert result["candidates_matched"] == 1
+    assert result["checked"] == 1
+    conn = db.get_connection(db_path)
+    try:
+        g1 = conn.execute("SELECT preflight_status FROM image_candidates WHERE image_id='IMG-G1'").fetchone()
+        g2 = conn.execute("SELECT preflight_status FROM image_candidates WHERE image_id='IMG-G2'").fetchone()
+    finally:
+        conn.close()
+    assert g1["preflight_status"] == "passed"
+    assert g2["preflight_status"] == "retryable"
 
 
 def test_force_retry_now_does_not_approve_blocked_pdf(tmp_path: Path, monkeypatch) -> None:
@@ -355,3 +450,24 @@ def test_force_retry_now_does_not_approve_blocked_pdf(tmp_path: Path, monkeypatc
         conn.close()
     assert row["status"] == "technical_rejected"
     assert row["preflight_status"] == "blocked"
+
+
+def test_retry_preflight_counts_missing_url_skip(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed(conn, "IMG-MISS", status="needs_review", image_url="")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429' WHERE image_id='IMG-MISS'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    monkeypatch.setattr("agents.candidate_preflight_agent.load_config", _cfg)
+    monkeypatch.setattr("agents.candidate_preflight_agent.urlopen", lambda req, timeout=0: _Resp("image/jpeg", "10"))
+    result = CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / "out.csv").run(
+        provider="wikimedia", retry_only=True, force=True
+    )
+    assert result["checked"] == 1
+    assert result["skipped_by_missing_url"] == 1

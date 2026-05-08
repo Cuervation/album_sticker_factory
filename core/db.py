@@ -1134,6 +1134,7 @@ def list_candidates_for_retry_mark(
             sticker_id,
             query_id,
             provider,
+            image_url,
             status,
             preflight_status,
             preflight_error,
