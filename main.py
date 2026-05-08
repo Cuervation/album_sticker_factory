@@ -256,8 +256,8 @@ def cmd_execute_routes(args: argparse.Namespace) -> int:
         if "No search routes found" in message:
             print("Primero ejecuta python main.py route-search")
             return 0
-        if "only allows provider=local_folder or provider=wikimedia" in message:
-            print("En Prompt 8 solo se permite --provider local_folder o --provider wikimedia")
+        if "only allows provider=" in message or "Prompt 8 only allows" in message:
+            print("En esta etapa solo se permite --provider local_folder, --provider wikimedia, --provider manual_urls o --provider auto")
             return 0
         print(f"Execute-routes failed: {message}")
         return 1

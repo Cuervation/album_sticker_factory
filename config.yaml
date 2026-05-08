@@ -72,6 +72,29 @@ search_execution:
   max_routes_per_run: 20
   dry_run: false
 
+source_providers:
+  enabled_order:
+    - manual_urls
+    - local_folder
+    - wikimedia
+  providers:
+    manual_urls:
+      enabled: true
+    local_folder:
+      enabled: true
+    wikimedia:
+      enabled: true
+    sanlorenzo_official:
+      enabled: false
+    conmebol:
+      enabled: false
+    afa:
+      enabled: false
+    news_manual:
+      enabled: false
+    social_manual:
+      enabled: false
+
 external_search:
   enabled: true
   allow_internet: true

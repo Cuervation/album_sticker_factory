@@ -123,8 +123,11 @@ class ReviewAgent:
                 prev["source_page"] = str(src.get("source_page", ""))
                 prev["image_url"] = str(src.get("image_url", ""))
                 prev.setdefault("notes", str(prev.get("notes", "")).strip())
-            for key in DECISION_HEADERS:
-                prev.setdefault(key, "")
+                for key in DECISION_HEADERS:
+                    prev.setdefault(key, "")
+            else:
+                for key in DECISION_HEADERS:
+                    prev.setdefault(key, "")
         self._write_decisions(decisions_path, existing)
         self._write_html_report(
             report_path,

@@ -24,7 +24,7 @@ def test_cmd_execute_routes_rejects_external_provider(monkeypatch, capsys) -> No
     code = main.cmd_execute_routes(argparse.Namespace(provider="general_web", limit=10))
     out = capsys.readouterr().out
     assert code == 0
-    assert "Prompt 8" in out
+    assert "solo se permite --provider local_folder" in out
 
 
 def test_cmd_execute_routes_prints_summary(monkeypatch, capsys) -> None:

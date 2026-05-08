@@ -3,6 +3,7 @@ from pathlib import Path
 
 from agents.search_executor_agent import SearchExecutorAgent
 from core import db
+from providers.manual_urls_provider import ManualUrlsProvider
 
 
 def _base_config(local_dir: Path, allow_internet: bool = True) -> dict:
@@ -181,9 +182,92 @@ def test_executor_rejects_external_provider(tmp_path: Path, monkeypatch) -> None
     try:
         agent.run(provider="general_web")
     except ValueError as exc:
-        assert "only allows provider=local_folder or provider=wikimedia" in str(exc)
+        assert "provider=local_folder" in str(exc)
+        assert "provider=wikimedia" in str(exc)
+        assert "provider=manual_urls" in str(exc)
+        assert "provider=auto" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("Expected ValueError for external provider")
+
+
+def test_executor_auto_runs_manual_then_wikimedia(tmp_path: Path, monkeypatch) -> None:
+    sqlite_path = tmp_path / "db.sqlite"
+    local_dir = tmp_path / "local_images"
+    local_dir.mkdir(parents=True, exist_ok=True)
+    manual_dir = tmp_path / "data"
+    manual_dir.mkdir(parents=True, exist_ok=True)
+    manual_csv = manual_dir / "manual_image_urls.csv"
+    manual_csv.write_text("sticker_id,source_page,image_url,notes,provider_hint,license_status\n", encoding="utf-8")
+    conn = db.get_connection(sqlite_path)
+    try:
+        _seed_minimal_query_route(conn, provider="manual_urls", route_id_suffix="manual")
+        conn.execute(
+            """
+            INSERT INTO search_routes (
+                route_id, query_id, sticker_id, provider, priority, status, reason, created_at, updated_at
+            ) VALUES (?, 'Q-SL-13-001-01', 'SL-13-001', 'wikimedia', 1, 'pending', 'seeded', 'now', 'now')
+            """,
+            ("R-Q-SL-13-001-01-wikimedia",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    class EmptyWikimediaProvider:
+        def run(self, payload=None):  # noqa: ANN001
+            return {
+                "status": "ok",
+                "provider": "wikimedia",
+                "query_variants_tried": 1,
+                "tried_queries": ["San Lorenzo"],
+                "candidates": [
+                    {
+                        "source_page": "https://commons.wikimedia.org/wiki/File:Auto.jpg",
+                        "image_url": "https://upload.wikimedia.org/auto.jpg",
+                        "width": 1200,
+                        "height": 800,
+                        "license_status": "attribution_required",
+                        "relevance_score": 0.8,
+                        "executed_query": "San Lorenzo",
+                    }
+                ],
+                "had_http_error": False,
+            }
+
+    monkeypatch.setattr("agents.search_executor_agent.load_config", lambda: {
+        **_base_config(local_dir),
+        "source_providers": {
+            "enabled_order": ["manual_urls", "wikimedia"],
+            "providers": {
+                "manual_urls": {"enabled": True},
+                "wikimedia": {"enabled": True},
+            },
+        },
+    })
+    monkeypatch.setattr("agents.search_executor_agent.ROOT_DIR", tmp_path)
+    monkeypatch.setattr("agents.search_executor_agent.WikimediaProvider", EmptyWikimediaProvider)
+    agent = SearchExecutorAgent(db_path=sqlite_path, output_csv_path=tmp_path / "image_candidates.csv")
+    result = agent.run(provider="auto", limit=5)
+    assert result["provider"] == "auto"
+    assert result["routes_executed"] >= 1
+    assert result["candidates_created"] == 1
+    assert result["useful_candidates"] == 1
+    assert result["provider_summaries"][0]["provider"] == "manual_urls"
+    assert result["provider_summaries"][1]["provider"] == "wikimedia"
+
+
+def test_manual_urls_provider_ignores_documentary_extensions(tmp_path: Path) -> None:
+    csv_path = tmp_path / "manual_image_urls.csv"
+    csv_path.write_text(
+        "sticker_id,source_page,image_url,notes,provider_hint,license_status\n"
+        "SL-01-001,https://example.org/doc.pdf,https://example.org/doc.pdf,doc,manual,\n"
+        "SL-01-001,https://example.org/photo.jpg,https://example.org/photo.jpg,photo,manual,\n",
+        encoding="utf-8",
+    )
+    provider = ManualUrlsProvider()
+    result = provider.run({"csv_path": csv_path})
+    assert result["candidates_created"] == 1
+    assert result["unsupported_skipped"] == 1
 
 
 def test_executor_blocks_wikimedia_when_internet_disabled(tmp_path: Path, monkeypatch) -> None:

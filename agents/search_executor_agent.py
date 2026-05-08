@@ -13,6 +13,7 @@ from core import db
 from core.config import load_config
 from core.paths import DB_PATH, IMAGE_CANDIDATES_CSV_PATH, ROOT_DIR, SEARCH_ROUTES_CSV_PATH
 from providers.local_folder_provider import LocalFolderProvider
+from providers.manual_urls_provider import ManualUrlsProvider
 from providers.wikimedia_provider import WikimediaProvider
 
 
@@ -34,10 +35,10 @@ class SearchExecutorAgent:
             raise ValueError("search_execution.enabled is false.")
 
         execute_map = exec_cfg.get("execute_providers", {})
-        allowed_prompt8 = {"local_folder", "wikimedia"}
+        allowed_prompt8 = {"local_folder", "wikimedia", "manual_urls", "auto"}
         if provider not in allowed_prompt8:
-            raise ValueError("Prompt 8 only allows provider=local_folder or provider=wikimedia.")
-        if not bool(execute_map.get(provider, False)):
+            raise ValueError("Prompt 8 only allows provider=local_folder, provider=wikimedia, provider=manual_urls or provider=auto.")
+        if provider not in {"auto"} and not bool(execute_map.get(provider, False)):
             raise ValueError(f"{provider} execution is disabled in config.")
 
         # Reject accidentally enabled unsupported providers in this prompt.
@@ -60,12 +61,32 @@ class SearchExecutorAgent:
             if db.count_rows(conn, "search_routes") == 0:
                 raise ValueError("No search routes found. Primero ejecuta python main.py route-search")
 
-            routes = db.list_search_routes_with_context(
-                conn=conn,
-                provider=provider,
-                statuses=("pending", "skipped", "failed"),
-                limit=effective_limit,
-            )
+            if provider == "auto":
+                source_cfg = config.get("source_providers", {})
+                order = list(source_cfg.get("enabled_order", ["manual_urls", "local_folder", "wikimedia"]))
+                enabled = source_cfg.get("providers", {})
+                routes = []
+                for provider_name in order:
+                    if not bool(enabled.get(provider_name, {}).get("enabled", False)):
+                        continue
+                    routes.extend(
+                        db.list_search_routes_with_context(
+                            conn=conn,
+                            provider=provider_name,
+                            statuses=("pending", "skipped", "failed"),
+                            limit=effective_limit,
+                        )
+                    )
+                    if len(routes) >= effective_limit:
+                        break
+                routes = routes[:effective_limit]
+            else:
+                routes = db.list_search_routes_with_context(
+                    conn=conn,
+                    provider=provider,
+                    statuses=("pending", "skipped", "failed"),
+                    limit=effective_limit,
+                )
             if not routes:
                 existing_rows = db.list_image_candidates(conn)
                 db.export_search_routes_csv(conn, SEARCH_ROUTES_CSV_PATH)
@@ -89,8 +110,12 @@ class SearchExecutorAgent:
                     ),
                 }
 
-            if provider == "local_folder":
+            if provider == "auto":
+                result = self._execute_auto(conn=conn, routes=routes, config=config)
+            elif provider == "local_folder":
                 result = self._execute_local_folder(conn=conn, routes=routes, config=config)
+            elif provider == "manual_urls":
+                result = self._execute_manual_urls(conn=conn, routes=routes, config=config)
             else:
                 result = self._execute_wikimedia(conn=conn, routes=routes, config=config)
 
@@ -387,6 +412,122 @@ class SearchExecutorAgent:
             duplicates_skipped=duplicates_skipped,
         )
 
+    def _execute_manual_urls(self, conn: Any, routes: list[dict[str, Any]], config: dict[str, Any]) -> dict[str, Any]:
+        provider_impl = ManualUrlsProvider()
+        route_outcomes: dict[str, tuple[str, str]] = {}
+        candidate_rows: list[dict[str, Any]] = []
+        rows_read = 0
+        duplicates_skipped = 0
+
+        manual_csv = ROOT_DIR / "data" / "manual_image_urls.csv"
+        for route in routes:
+            response = provider_impl.run({"csv_path": manual_csv})
+            rows_read = max(rows_read, int(response.get("rows_read", 0)))
+            candidates = response.get("candidates", [])
+            if candidates:
+                route_outcomes[route["route_id"]] = ("routed", f"candidates_found:{len(candidates)}")
+            else:
+                route_outcomes[route["route_id"]] = ("skipped", "no_results")
+            for item in candidates:
+                image_url = str(item.get("image_url", "") or "")
+                source_page = str(item.get("source_page", "") or "")
+                canonical_key = db.canonical_media_key("manual_urls", image_url, source_page)
+                if db.image_candidate_exists_for_canonical(conn, canonical_key):
+                    duplicates_skipped += 1
+                    continue
+                candidate_rows.append(
+                    {
+                        "image_id": self._build_image_id(
+                            sticker_id=item["sticker_id"],
+                            provider_slug="manual-urls",
+                            fingerprint=canonical_key,
+                        ),
+                        "sticker_id": item["sticker_id"],
+                        "query_id": item.get("query_id", route.get("query_id", "")),
+                        "provider": "manual_urls",
+                        "source_page": source_page,
+                        "image_url": image_url,
+                        "local_path": item.get("local_path", ""),
+                        "executed_query": item.get("executed_query", ""),
+                        "width": item.get("width"),
+                        "height": item.get("height"),
+                        "quality_score": None,
+                        "relevance_score": float(item.get("relevance_score", 1.0) or 1.0),
+                        "duplicate_group": db.duplicate_group_key(canonical_key),
+                        "license_status": item.get("license_status", "needs_manual_review"),
+                        "status": "found",
+                    }
+                )
+
+        created_count = db.upsert_image_candidates(conn, candidate_rows)
+        db.update_search_routes_outcome(conn, route_outcomes)
+        return self._build_result_summary(
+            provider="manual_urls",
+            routes=routes,
+            routes_executed=len(routes),
+            images_found=rows_read,
+            candidates_created=created_count,
+            outcomes=route_outcomes,
+            duplicates_skipped=duplicates_skipped,
+        )
+
+    def _execute_auto(self, conn: Any, routes: list[dict[str, Any]], config: dict[str, Any]) -> dict[str, Any]:
+        source_cfg = config.get("source_providers", {})
+        order = list(source_cfg.get("enabled_order", ["manual_urls", "local_folder", "wikimedia"]))
+        providers = source_cfg.get("providers", {})
+        search_cfg = config.get("search_execution", {})
+        search_max = int(search_cfg.get("max_routes_per_run", len(routes) or 1))
+        summaries: list[dict[str, Any]] = []
+        total_created = 0
+        total_skipped = 0
+        total_unsupported = 0
+        total_duplicates = 0
+        useful = 0
+        for provider_name in order:
+            if not bool(providers.get(provider_name, {}).get("enabled", False)):
+                continue
+            provider_routes = db.list_search_routes_with_context(
+                conn=conn,
+                provider=provider_name,
+                statuses=("pending", "skipped", "failed"),
+                limit=search_max,
+            )
+            if not provider_routes:
+                continue
+            if provider_name == "manual_urls":
+                result = self._execute_manual_urls(conn, provider_routes, config)
+            elif provider_name == "local_folder":
+                result = self._execute_local_folder(conn, provider_routes, config)
+            elif provider_name == "wikimedia":
+                result = self._execute_wikimedia(conn, provider_routes, config)
+            else:
+                continue
+            summaries.append(result)
+            total_created += int(result.get("candidates_created", 0))
+            total_skipped += int(result.get("routes_skipped", 0))
+            total_unsupported += int(result.get("unsupported_skipped", 0))
+            total_duplicates += int(result.get("duplicates_skipped", 0))
+            useful += int(result.get("candidates_created", 0))
+            if useful > 0:
+                break
+        self._export_search_routes_csv(conn)
+        return {
+            "status": "ok",
+            "provider": "auto",
+            "routes_read": len(routes),
+            "routes_executed": sum(int(item.get("routes_executed", 0)) for item in summaries),
+            "images_found": sum(int(item.get("images_found", 0)) for item in summaries),
+            "candidates_created": total_created,
+            "duplicates_skipped": total_duplicates,
+            "unsupported_skipped": total_unsupported,
+            "useful_candidates": useful,
+            "routes_routed": sum(int(item.get("routes_routed", 0)) for item in summaries),
+            "routes_skipped": total_skipped,
+            "routes_failed": sum(int(item.get("routes_failed", 0)) for item in summaries),
+            "csv_path": str(self.output_csv_path),
+            "provider_summaries": summaries,
+        }
+
     def _build_result_summary(
         self,
         provider: str,
@@ -398,6 +539,7 @@ class SearchExecutorAgent:
         query_variants_tried: int = 0,
         executed_query_examples: list[str] | None = None,
         duplicates_skipped: int = 0,
+        unsupported_skipped: int = 0,
     ) -> dict[str, Any]:
         routed = sum(1 for status, _ in outcomes.values() if status == "routed")
         skipped = sum(1 for status, _ in outcomes.values() if status == "skipped")
@@ -415,7 +557,11 @@ class SearchExecutorAgent:
             "query_variants_tried": query_variants_tried,
             "executed_query_examples": executed_query_examples or [],
             "duplicates_skipped": duplicates_skipped,
+            "unsupported_skipped": unsupported_skipped,
         }
+
+    def _export_search_routes_csv(self, conn: Any) -> None:
+        db.export_search_routes_csv(conn, SEARCH_ROUTES_CSV_PATH)
 
     def _export_candidates_csv(self, rows: list[dict[str, Any]]) -> None:
         self.output_csv_path.parent.mkdir(parents=True, exist_ok=True)
