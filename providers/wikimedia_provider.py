@@ -12,6 +12,13 @@ from urllib.request import Request, urlopen
 
 from core.provider_query_adapter import build_provider_queries
 
+RASTER_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+
 class WikimediaProvider:
     """Discover image candidates from Wikimedia Commons API."""
 
@@ -64,8 +71,10 @@ class WikimediaProvider:
         had_http_error = False
         had_successful_call = False
         raw_results_seen = False
+        unsupported_mime_seen = False
         last_error_type = "provider_exception"
         last_error_detail = ""
+        self._last_unsupported_mime_seen = False
 
         for variant in variants[:max_query_variants]:
             tried_queries.append(variant)
@@ -87,6 +96,8 @@ class WikimediaProvider:
                 max_results=max_results,
                 executed_query=variant,
             )
+            unsupported_mime_seen = unsupported_mime_seen or bool(self._last_unsupported_mime_seen)
+            self._last_unsupported_mime_seen = False
             pages = response.get("data", {}).get("query", {}).get("pages", {})
             if isinstance(pages, dict) and pages:
                 raw_results_seen = True
@@ -121,6 +132,7 @@ class WikimediaProvider:
             "had_http_error": had_http_error,
             "had_successful_call": had_successful_call,
             "raw_results_seen": raw_results_seen,
+            "unsupported_mime_seen": unsupported_mime_seen,
         }
 
     def search_commons(
@@ -193,12 +205,17 @@ class WikimediaProvider:
         """Parse Commons response into normalized candidate dicts."""
         pages = raw_json.get("query", {}).get("pages", {}) if isinstance(raw_json, dict) else {}
         candidates: list[dict[str, Any]] = []
+        unsupported_seen = False
         for _, page in pages.items():
             imageinfo = (page.get("imageinfo") or [{}])[0]
+            mime = str(imageinfo.get("mime") or "").strip().lower()
             source_page = imageinfo.get("descriptionurl") or page.get("canonicalurl") or page.get("fullurl") or ""
             image_url = imageinfo.get("url") or ""
             title = page.get("title", "")
             if not (source_page or image_url):
+                continue
+            if mime and mime not in RASTER_MIME_TYPES:
+                unsupported_seen = True
                 continue
             extmetadata = imageinfo.get("extmetadata") or {}
             license_status = self.license_status_from_metadata(extmetadata)
@@ -208,6 +225,7 @@ class WikimediaProvider:
                 {
                     "source_page": source_page,
                     "image_url": image_url,
+                    "mime": mime,
                     "width": imageinfo.get("width"),
                     "height": imageinfo.get("height"),
                     "license_status": license_status,
@@ -215,8 +233,10 @@ class WikimediaProvider:
                     "relevance_score": relevance_score,
                     "executed_query": executed_query,
                 }
-            )
+                )
         candidates.sort(key=lambda item: (item["relevance_score"] if item["relevance_score"] is not None else 0), reverse=True)
+        if unsupported_seen:
+            self._last_unsupported_mime_seen = True
         return candidates[:max_results]
 
     def relevance_score(self, query: str, title: str, source_page: str) -> float:

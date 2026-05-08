@@ -267,6 +267,8 @@ def cmd_execute_routes(args: argparse.Namespace) -> int:
 
     print("Route execution complete.")
     print(f"- Provider: {result['provider']}")
+    print(f"- Requested limit: {result.get('requested_limit', result['routes_read'])}")
+    print(f"- Effective limit: {result.get('effective_limit', result['routes_read'])}")
     print(f"- Routes read: {result['routes_read']}")
     print(f"- Routes executed: {result['routes_executed']}")
     print(f"- Candidates found: {result.get('candidates_created', 0)}")
@@ -276,6 +278,8 @@ def cmd_execute_routes(args: argparse.Namespace) -> int:
     print(f"- Routes skipped: {result.get('routes_skipped', 0)}")
     print(f"- Routes failed: {result.get('routes_failed', 0)}")
     print(f"- CSV written: {result['csv_path']}")
+    if result.get("search_routes_csv_path"):
+        print(f"- Routes CSV written: {result['search_routes_csv_path']}")
     if result.get("message"):
         print(f"- Note: {result['message']}")
     examples = result.get("executed_query_examples", [])

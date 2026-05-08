@@ -79,6 +79,47 @@ def test_wikimedia_provider_parses_candidates_from_fake_api(monkeypatch) -> None
     assert c["relevance_score"] >= 0
 
 
+def test_wikimedia_provider_ignores_unsupported_mime(monkeypatch) -> None:
+    payload = """
+    {
+      "query": {
+        "pages": {
+          "1": {
+            "title": "File:Doc.pdf",
+            "imageinfo": [{
+              "mime": "application/pdf",
+              "url": "https://upload.wikimedia.org/test.pdf",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Doc.pdf",
+              "width": 1200,
+              "height": 800
+            }]
+          },
+          "2": {
+            "title": "File:Raster.jpg",
+            "imageinfo": [{
+              "mime": "image/jpeg",
+              "url": "https://upload.wikimedia.org/test.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Raster.jpg",
+              "width": 1200,
+              "height": 800
+            }]
+          }
+        }
+      }
+    }
+    """
+
+    def _fake_urlopen(req, timeout=0):  # noqa: ANN001
+        return _FakeResponse(payload)
+
+    monkeypatch.setattr("providers.wikimedia_provider.urlopen", _fake_urlopen)
+    provider = WikimediaProvider()
+    result = provider.run({"allow_internet": True, "query": "San Lorenzo", "max_results": 5})
+    assert result["status"] == "ok"
+    assert len(result["candidates"]) == 1
+    assert result["candidates"][0]["image_url"].endswith(".jpg")
+
+
 def test_wikimedia_provider_handles_empty_response(monkeypatch) -> None:
     def _fake_urlopen(req, timeout=0):  # noqa: ANN001
         return _FakeResponse('{"query":{"pages":{}}}')

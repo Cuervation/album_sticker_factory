@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from core import db
 from core.config import load_config
-from core.paths import DB_PATH, IMAGE_CANDIDATES_CSV_PATH, ROOT_DIR
+from core.paths import DB_PATH, IMAGE_CANDIDATES_CSV_PATH, ROOT_DIR, SEARCH_ROUTES_CSV_PATH
 from providers.local_folder_provider import LocalFolderProvider
 from providers.wikimedia_provider import WikimediaProvider
 
@@ -48,7 +48,8 @@ class SearchExecutorAgent:
                 )
 
         search_max = int(exec_cfg.get("max_routes_per_run", 20))
-        effective_limit = limit if limit is not None else search_max
+        requested_limit = limit if limit is not None else search_max
+        effective_limit = requested_limit
         effective_limit = min(effective_limit, search_max)
         if effective_limit <= 0:
             raise ValueError("Route limit must be positive.")
@@ -67,10 +68,13 @@ class SearchExecutorAgent:
             )
             if not routes:
                 existing_rows = db.list_image_candidates(conn)
+                db.export_search_routes_csv(conn, SEARCH_ROUTES_CSV_PATH)
                 self._export_candidates_csv(existing_rows)
                 return {
                     "status": "ok",
                     "provider": provider,
+                    "requested_limit": requested_limit,
+                    "effective_limit": effective_limit,
                     "routes_read": 0,
                     "routes_executed": 0,
                     "images_found": 0,
@@ -91,11 +95,15 @@ class SearchExecutorAgent:
                 result = self._execute_wikimedia(conn=conn, routes=routes, config=config)
 
             exported_rows = db.list_image_candidates(conn)
+            db.export_search_routes_csv(conn, SEARCH_ROUTES_CSV_PATH)
         finally:
             conn.close()
 
         self._export_candidates_csv(exported_rows)
         result["csv_path"] = str(self.output_csv_path)
+        result["requested_limit"] = requested_limit
+        result["effective_limit"] = effective_limit
+        result["search_routes_csv_path"] = str(SEARCH_ROUTES_CSV_PATH)
         return result
 
     def _execute_local_folder(
@@ -229,6 +237,7 @@ class SearchExecutorAgent:
             collected: list[dict[str, Any]] = []
             seen_fingerprints: set[str] = set()
             fallback_response: dict[str, Any] | None = None
+            unsupported_documentary = False
 
             status = response.get("status")
             if status == "disabled":
@@ -287,6 +296,7 @@ class SearchExecutorAgent:
                 if not (image_url or source_page):
                     continue
                 if image_url and self._is_documentary_url(image_url):
+                    unsupported_documentary = True
                     continue
                 fingerprint = f"{route['route_id']}|{image_url or source_page}"
                 if fingerprint in seen_fingerprints:
@@ -332,9 +342,19 @@ class SearchExecutorAgent:
                 ):
                     route_outcomes[route["route_id"]] = ("failed", "http_error")
                 elif bool(source_resp.get("raw_results_seen", False)):
+                    unsupported_seen = self._response_has_only_unsupported_mime(source_resp)
                     route_outcomes[route["route_id"]] = (
                         "skipped",
-                        f"no_candidates_after_parse;tried_queries:{len(used_queries)}",
+                        (
+                            f"raw_results_but_only_unsupported_mime;tried_queries:{len(used_queries)}"
+                            if unsupported_seen or unsupported_documentary
+                            else f"no_candidates_after_parse;tried_queries:{len(used_queries)}"
+                        ),
+                    )
+                elif unsupported_documentary:
+                    route_outcomes[route["route_id"]] = (
+                        "skipped",
+                        f"raw_results_but_only_unsupported_mime;tried_queries:{len(used_queries)}",
                     )
                 else:
                     route_outcomes[route["route_id"]] = (
@@ -449,3 +469,12 @@ class SearchExecutorAgent:
         parts = [part for part in parts if part]
         query = " ".join(parts)
         return " ".join(query.split())
+
+    @staticmethod
+    def _response_has_only_unsupported_mime(response: dict[str, Any]) -> bool:
+        candidates = response.get("candidates", []) if isinstance(response, dict) else []
+        for item in candidates:
+            mime = str(item.get("mime") or "").strip().lower()
+            if mime in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+                return False
+        return bool(candidates) or bool(response.get("unsupported_mime_seen", False))

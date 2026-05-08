@@ -686,6 +686,48 @@ def update_search_routes_outcome(
     return len(rows)
 
 
+def export_search_routes_csv(conn: sqlite3.Connection, output_path: str | Path) -> int:
+    """Export current search_routes table to CSV."""
+    from csv import DictWriter
+
+    rows = conn.execute(
+        """
+        SELECT
+            route_id,
+            query_id,
+            sticker_id,
+            provider,
+            priority,
+            status,
+            reason,
+            created_at,
+            updated_at
+        FROM search_routes
+        ORDER BY route_id ASC
+        """
+    ).fetchall()
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = DictWriter(
+            fh,
+            fieldnames=[
+                "route_id",
+                "query_id",
+                "sticker_id",
+                "provider",
+                "priority",
+                "status",
+                "reason",
+                "created_at",
+                "updated_at",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows([dict(row) for row in rows])
+    return len(rows)
+
+
 def list_image_candidates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """List all image candidates for CSV export."""
     rows = conn.execute(

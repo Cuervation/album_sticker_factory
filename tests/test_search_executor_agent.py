@@ -245,6 +245,40 @@ def test_executor_wikimedia_no_results_sets_tried_queries_reason(tmp_path: Path,
     assert "tried_queries:" in str(row["reason"])
 
 
+def test_executor_reports_requested_and_effective_limit_and_exports_routes_csv(tmp_path: Path, monkeypatch) -> None:
+    sqlite_path = tmp_path / "db.sqlite"
+    local_dir = tmp_path / "local_images"
+    conn = db.get_connection(sqlite_path)
+    try:
+        _seed_minimal_query_route(conn, provider="wikimedia", route_id_suffix="wikimedia-cap")
+    finally:
+        conn.close()
+
+    class EmptyWikimediaProvider:
+        def run(self, payload=None):  # noqa: ANN001
+            return {
+                "status": "ok",
+                "provider": "wikimedia",
+                "query_variants_tried": 1,
+                "tried_queries": ["San Lorenzo"],
+                "candidates": [],
+                "had_http_error": False,
+            }
+
+    monkeypatch.setattr("agents.search_executor_agent.load_config", lambda: _base_config(local_dir))
+    monkeypatch.setattr("agents.search_executor_agent.WikimediaProvider", EmptyWikimediaProvider)
+    agent = SearchExecutorAgent(db_path=sqlite_path, output_csv_path=tmp_path / "image_candidates.csv")
+    result = agent.run(provider="wikimedia", limit=200)
+    assert result["requested_limit"] == 200
+    assert result["effective_limit"] == 20
+    assert result["search_routes_csv_path"].endswith("search_routes.csv")
+    assert Path(result["search_routes_csv_path"]).exists()
+    with Path(result["search_routes_csv_path"]).open("r", encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert rows
+    assert any(row["status"] == "skipped" for row in rows)
+
+
 def test_executor_wikimedia_http_error_sets_failed_reason(tmp_path: Path, monkeypatch) -> None:
     sqlite_path = tmp_path / "db.sqlite"
     local_dir = tmp_path / "local_images"
@@ -414,6 +448,9 @@ def test_executor_filters_documentary_candidates(tmp_path: Path, monkeypatch) ->
     conn = db.get_connection(sqlite_path)
     try:
         total = db.count_rows(conn, "image_candidates")
+        row = conn.execute("SELECT status, reason FROM search_routes WHERE provider='wikimedia' LIMIT 1").fetchone()
     finally:
         conn.close()
     assert total == 0
+    assert row["status"] == "skipped"
+    assert "raw_results_but_only_unsupported_mime" in str(row["reason"]) or "no_candidates_after_parse" in str(row["reason"])
