@@ -64,13 +64,21 @@ class ReviewAgent:
                 limit=limit,
             )
             all_candidates = {str(row["image_id"]): row for row in db.list_image_candidates(conn)}
+            canonical_map = self._canonical_representatives(all_candidates.values())
         finally:
             conn.close()
 
         existing = self._load_decisions(decisions_path)
         existing_ids = set(existing.keys())
         added = 0
+        unique_candidates = []
         for candidate in candidates:
+            key = self._canonical_key(candidate)
+            rep = canonical_map.get(key)
+            if rep and str(rep["image_id"]) != str(candidate["image_id"]):
+                continue
+            unique_candidates.append(candidate)
+        for candidate in unique_candidates:
             image_id = str(candidate["image_id"])
             prev = existing.get(image_id, {})
             if image_id not in existing:
@@ -106,11 +114,11 @@ class ReviewAgent:
             for key in DECISION_HEADERS:
                 prev.setdefault(key, "")
         self._write_decisions(decisions_path, existing)
-        self._write_html_report(report_path, candidates, allow_remote_preview=allow_remote_preview)
+        self._write_html_report(report_path, unique_candidates, allow_remote_preview=allow_remote_preview)
 
         return {
             "status": "ok",
-            "candidates_needs_review": len(candidates),
+            "candidates_needs_review": len(unique_candidates),
             "html_path": str(report_path),
             "decisions_csv_path": str(decisions_path),
             "decisions_existing": len(existing_ids),
@@ -396,6 +404,34 @@ class ReviewAgent:
   </div>
 </article>
 """
+
+    def _canonical_representatives(self, rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            key = self._canonical_key(row)
+            grouped.setdefault(key, []).append(row)
+
+        reps: dict[str, dict[str, Any]] = {}
+        for key, items in grouped.items():
+            reps[key] = sorted(
+                items,
+                key=lambda row: (
+                    0 if str(row.get("preflight_status") or "") == "passed" else 1,
+                    0 if str(row.get("status") or "") == "needs_review" else 1,
+                    -float(row.get("metadata_score") or 0.0),
+                    -float(row.get("relevance_score") or 0.0),
+                    str(row.get("image_id") or ""),
+                ),
+            )[0]
+        return reps
+
+    @staticmethod
+    def _canonical_key(row: dict[str, Any]) -> str:
+        return db.canonical_media_key(
+            str(row.get("provider") or ""),
+            str(row.get("image_url") or ""),
+            str(row.get("source_page") or ""),
+        )
 
     def _get_preflight_map(self) -> dict[str, dict[str, Any]]:
         conn = db.get_connection(self.db_path)

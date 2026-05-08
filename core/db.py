@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from core.paths import CHAPTERS_CSV_PATH, DB_PATH
 
@@ -684,6 +685,41 @@ def update_search_routes_outcome(
     )
     conn.commit()
     return len(rows)
+
+
+def canonical_media_key(provider: str, image_url: str, source_page: str) -> str:
+    """Stable key for visual duplicates."""
+    base = str(image_url or "").strip() or str(source_page or "").strip()
+    if not base:
+        return f"{provider}|"
+    parsed = urlparse(base)
+    path = parsed.path.lower()
+    query_pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if not k.lower().startswith("utm_")]
+    query = urlencode(sorted(query_pairs))
+    normalized = urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), path, "", query, ""))
+    return f"{provider}|{normalized}"
+
+
+def image_candidate_exists_for_canonical(conn: sqlite3.Connection, canonical_key: str) -> bool:
+    """Check whether a canonical media key is already present."""
+    rows = conn.execute(
+        """
+        SELECT image_url, source_page, provider
+        FROM image_candidates
+        """
+    ).fetchall()
+    for row in rows:
+        key = canonical_media_key(str(row["provider"] or ""), str(row["image_url"] or ""), str(row["source_page"] or ""))
+        if key == canonical_key:
+            return True
+    return False
+
+
+def duplicate_group_key(canonical_key: str) -> str:
+    """Compact duplicate group identifier."""
+    import hashlib
+
+    return f"dup-{hashlib.sha1(canonical_key.encode('utf-8')).hexdigest()[:12]}"
 
 
 def export_search_routes_csv(conn: sqlite3.Connection, output_path: str | Path) -> int:

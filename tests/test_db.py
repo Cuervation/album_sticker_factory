@@ -96,6 +96,20 @@ def test_reviews_by_status_counts(tmp_path: Path) -> None:
     assert status["reviews_count"] == 2
 
 
+def test_canonical_media_key_ignores_utm(tmp_path: Path) -> None:
+    key1 = db.canonical_media_key(
+        "wikimedia",
+        "https://upload.wikimedia.org/same.jpg?utm_source=a&utm_medium=b",
+        "https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=a",
+    )
+    key2 = db.canonical_media_key(
+        "wikimedia",
+        "https://upload.wikimedia.org/same.jpg?utm_source=c",
+        "https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=d",
+    )
+    assert key1 == key2
+
+
 def test_list_candidates_for_retry_mark_uses_preflight_status(tmp_path: Path) -> None:
     db_path = tmp_path / "test.sqlite"
     conn = db.get_connection(db_path)

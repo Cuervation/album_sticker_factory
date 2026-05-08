@@ -210,6 +210,7 @@ class SearchExecutorAgent:
         routes_executed = 0
         query_variants_tried = 0
         executed_query_examples: list[str] = []
+        duplicates_skipped = 0
         wikimedia_cfg = config.get("wikimedia", {})
         max_query_variants = int(wikimedia_cfg.get("max_query_variants_per_route", 5))
         stop_after_first_success = bool(wikimedia_cfg.get("stop_after_first_success", True))
@@ -236,6 +237,7 @@ class SearchExecutorAgent:
             used_queries = response.get("tried_queries", [])
             collected: list[dict[str, Any]] = []
             seen_fingerprints: set[str] = set()
+            seen_canonical_keys: set[str] = set()
             fallback_response: dict[str, Any] | None = None
             unsupported_documentary = False
 
@@ -298,6 +300,14 @@ class SearchExecutorAgent:
                 if image_url and self._is_documentary_url(image_url):
                     unsupported_documentary = True
                     continue
+                canonical_key = db.canonical_media_key("wikimedia", image_url, source_page)
+                if canonical_key in seen_canonical_keys:
+                    duplicates_skipped += 1
+                    continue
+                if db.image_candidate_exists_for_canonical(conn, canonical_key):
+                    duplicates_skipped += 1
+                    continue
+                seen_canonical_keys.add(canonical_key)
                 fingerprint = f"{route['route_id']}|{image_url or source_page}"
                 if fingerprint in seen_fingerprints:
                     continue
@@ -320,7 +330,7 @@ class SearchExecutorAgent:
                         "height": item.get("height"),
                         "quality_score": None,
                         "relevance_score": item.get("relevance_score", 0.0),
-                        "duplicate_group": None,
+                        "duplicate_group": db.duplicate_group_key(canonical_key),
                         "license_status": item.get("license_status", "needs_manual_review"),
                         "status": "found",
                     }
@@ -374,6 +384,7 @@ class SearchExecutorAgent:
             outcomes=route_outcomes,
             query_variants_tried=query_variants_tried,
             executed_query_examples=executed_query_examples,
+            duplicates_skipped=duplicates_skipped,
         )
 
     def _build_result_summary(
@@ -386,6 +397,7 @@ class SearchExecutorAgent:
         outcomes: dict[str, tuple[str, str]],
         query_variants_tried: int = 0,
         executed_query_examples: list[str] | None = None,
+        duplicates_skipped: int = 0,
     ) -> dict[str, Any]:
         routed = sum(1 for status, _ in outcomes.values() if status == "routed")
         skipped = sum(1 for status, _ in outcomes.values() if status == "skipped")
@@ -402,6 +414,7 @@ class SearchExecutorAgent:
             "routes_failed": failed,
             "query_variants_tried": query_variants_tried,
             "executed_query_examples": executed_query_examples or [],
+            "duplicates_skipped": duplicates_skipped,
         }
 
     def _export_candidates_csv(self, rows: list[dict[str, Any]]) -> None:

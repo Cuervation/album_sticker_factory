@@ -454,3 +454,49 @@ def test_executor_filters_documentary_candidates(tmp_path: Path, monkeypatch) ->
     assert total == 0
     assert row["status"] == "skipped"
     assert "raw_results_but_only_unsupported_mime" in str(row["reason"]) or "no_candidates_after_parse" in str(row["reason"])
+
+
+def test_executor_dedupes_canonical_urls_with_utm(tmp_path: Path, monkeypatch) -> None:
+    sqlite_path = tmp_path / "db.sqlite"
+    local_dir = tmp_path / "local_images"
+    conn = db.get_connection(sqlite_path)
+    try:
+        _seed_minimal_query_route(conn, provider="wikimedia", route_id_suffix="wikimedia-dedupe")
+    finally:
+        conn.close()
+
+    class DedupeWikimediaProvider:
+        def run(self, payload=None):  # noqa: ANN001
+            return {
+                "status": "ok",
+                "provider": "wikimedia",
+                "query_variants_tried": 1,
+                "tried_queries": ["San Lorenzo"],
+                "candidates": [
+                    {
+                        "source_page": "https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=a",
+                        "image_url": "https://upload.wikimedia.org/same.jpg?utm_source=a&utm_medium=b",
+                        "width": 1200,
+                        "height": 800,
+                        "license_status": "attribution_required",
+                        "relevance_score": 0.9,
+                        "executed_query": "San Lorenzo",
+                    },
+                    {
+                        "source_page": "https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=c",
+                        "image_url": "https://upload.wikimedia.org/same.jpg?utm_source=d",
+                        "width": 1200,
+                        "height": 800,
+                        "license_status": "attribution_required",
+                        "relevance_score": 0.8,
+                        "executed_query": "San Lorenzo",
+                    },
+                ],
+            }
+
+    monkeypatch.setattr("agents.search_executor_agent.load_config", lambda: _base_config(local_dir))
+    monkeypatch.setattr("agents.search_executor_agent.WikimediaProvider", DedupeWikimediaProvider)
+    agent = SearchExecutorAgent(db_path=sqlite_path, output_csv_path=tmp_path / "image_candidates.csv")
+    result = agent.run(provider="wikimedia", limit=5)
+    assert result["candidates_created"] == 1
+    assert result["duplicates_skipped"] >= 1

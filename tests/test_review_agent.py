@@ -116,6 +116,32 @@ def test_review_candidates_preserves_existing_decisions(tmp_path: Path, monkeypa
     assert "preflight_content_type" in headers
 
 
+def test_review_candidates_shows_one_rep_for_duplicate_media(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed_candidate(conn, "IMG-1")
+        _seed_candidate(conn, "IMG-2")
+        conn.execute(
+            "UPDATE image_candidates SET image_url='https://upload.wikimedia.org/same.jpg?utm_source=a', source_page='https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=a', preflight_status='retryable', metadata_score=0.7, relevance_score=0.6 WHERE image_id='IMG-1'"
+        )
+        conn.execute(
+            "UPDATE image_candidates SET image_url='https://upload.wikimedia.org/same.jpg?utm_source=b', source_page='https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=b', preflight_status='passed', metadata_score=0.6, relevance_score=0.9 WHERE image_id='IMG-2'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr("agents.review_agent.load_config", lambda: _review_cfg(tmp_path))
+    result = ReviewAgent(db_path=db_path).review_candidates()
+    assert result["candidates_needs_review"] == 1
+    html_path = tmp_path / "review_candidates.html"
+    html_text = html_path.read_text(encoding="utf-8")
+    assert html_text.count("image_id:") == 1
+    assert "passed" in html_text
+
+
 def test_apply_reviews_updates_status_and_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     db_path = tmp_path / "db.sqlite"
     decisions = tmp_path / "review_decisions.csv"
