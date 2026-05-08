@@ -65,14 +65,22 @@ class CandidatePreflightAgent:
         conn = db.get_connection(self.db_path)
         try:
             db.create_tables(conn)
-            statuses_filter = statuses_to_check
-            candidates = db.list_candidates_for_preflight(
-                conn,
-                statuses=statuses_filter,
-                provider=provider,
-                image_id=image_id,
-                limit=effective_limit,
-            )
+            if retry_only:
+                candidates = db.list_candidates_for_retry_mark(
+                    conn,
+                    provider=provider,
+                    image_id=image_id,
+                    preflight_statuses=retry_statuses,
+                    limit=effective_limit,
+                )
+            else:
+                candidates = db.list_candidates_for_preflight(
+                    conn,
+                    statuses=statuses_to_check,
+                    provider=provider,
+                    image_id=image_id,
+                    limit=effective_limit,
+                )
             if not candidates:
                 rows = db.list_image_candidates(conn)
                 self._export(rows)
@@ -99,12 +107,13 @@ class CandidatePreflightAgent:
                 "skipped_by_max_retry_attempts": 0,
                 "skipped_by_retry_window": 0,
                 "skipped_by_status": 0,
+                "skipped_by_preflight_status": 0,
                 "skipped_by_missing_url": 0,
                 "skipped_by_other_reason": 0,
                 "skipped_by_not_selected_after_mark": 0,
             }
             for candidate in candidates:
-                processed = self._process_candidate(
+                self._process_candidate(
                     candidate,
                     conn=conn,
                     allowed_providers=allowed_providers,
@@ -141,6 +150,7 @@ class CandidatePreflightAgent:
             "skipped_by_max_retry_attempts": counts["skipped_by_max_retry_attempts"],
             "skipped_by_retry_window": counts["skipped_by_retry_window"],
             "skipped_by_status": counts["skipped_by_status"],
+            "skipped_by_preflight_status": counts["skipped_by_preflight_status"],
             "skipped_by_missing_url": counts["skipped_by_missing_url"],
             "skipped_by_other_reason": counts["skipped_by_other_reason"],
             "skipped_by_not_selected_after_mark": counts["skipped_by_not_selected_after_mark"],
@@ -168,7 +178,7 @@ class CandidatePreflightAgent:
                 conn,
                 provider=provider,
                 image_id=image_id,
-                preflight_status=preflight_status,
+                preflight_statuses=(preflight_status,),
                 limit=limit,
             )
             image_ids = [str(row["image_id"]) for row in candidates]
@@ -223,19 +233,72 @@ class CandidatePreflightAgent:
         retry_cfg = load_config().get("preflight_retry", {})
         retry_enabled = bool(retry_cfg.get("enabled", True))
         retry_statuses = tuple(retry_cfg.get("statuses_to_retry", ["retryable"]))
-        retry_max_per_run = int(retry_cfg.get("max_candidates_per_run", 20))
         min_seconds_between_retries = int(retry_cfg.get("min_seconds_between_retries", 300))
         max_retry_attempts = int(retry_cfg.get("max_retry_attempts", 3))
         conn = db.get_connection(self.db_path)
         try:
             db.create_tables(conn)
-            candidates = db.list_candidates_for_retry_mark(
-                conn,
-                provider=provider,
-                image_id=image_id,
-                preflight_status="retryable",
-                limit=limit,
-            )
+            if image_id:
+                candidate = db.get_image_candidate_by_id(conn, image_id)
+                if not candidate:
+                    return {
+                        "status": "ok",
+                        "provider": provider,
+                        "candidates_matched": 0,
+                        "forced_marked": 0,
+                        "checked": 0,
+                        "passed": 0,
+                        "blocked": 0,
+                        "retryable": 0,
+                        "failed": 0,
+                        "technical_rejected": 0,
+                        "skipped_by_provider": 0,
+                        "skipped_by_candidate_status": 0,
+                        "skipped_by_preflight_status": 0,
+                        "skipped_by_max_retry_attempts": 0,
+                        "skipped_by_retry_window": 0,
+                        "skipped_by_status": 0,
+                        "skipped_by_missing_url": 0,
+                        "skipped_by_other_reason": 1,
+                        "skipped_by_not_selected_after_mark": 0,
+                        "dry_run": dry_run,
+                        "image_ids": [],
+                        "csv_path": str(self.output_csv_path),
+                        "message": f"image_id {image_id} no existe.",
+                    }
+                if provider and str(candidate.get("provider") or "") != provider:
+                    return self._force_retry_skip_result(
+                        provider=provider,
+                        image_id=image_id,
+                        reason="provider distinto",
+                        skip_key="skipped_by_provider",
+                        dry_run=dry_run,
+                    )
+                if str(candidate.get("status") or "") not in {"found", "needs_review", "approved"}:
+                    return self._force_retry_skip_result(
+                        provider=provider,
+                        image_id=image_id,
+                        reason="candidate status no elegible",
+                        skip_key="skipped_by_candidate_status",
+                        dry_run=dry_run,
+                    )
+                if str(candidate.get("preflight_status") or "") not in retry_statuses:
+                    return self._force_retry_skip_result(
+                        provider=provider,
+                        image_id=image_id,
+                        reason="preflight_status no retryable",
+                        skip_key="skipped_by_preflight_status",
+                        dry_run=dry_run,
+                    )
+                candidates = [candidate]
+            else:
+                candidates = db.list_candidates_for_retry_mark(
+                    conn,
+                    provider=provider,
+                    preflight_statuses=retry_statuses,
+                    limit=min(limit or retry_cfg.get("max_candidates_per_run", 20), int(retry_cfg.get("max_candidates_per_run", 20))),
+                )
+
             image_ids = [str(row["image_id"]) for row in candidates]
             if not dry_run:
                 db.mark_candidates_retry_forced(
@@ -255,6 +318,9 @@ class CandidatePreflightAgent:
                     "retryable": 0,
                     "failed": 0,
                     "technical_rejected": 0,
+                    "skipped_by_provider": 0,
+                    "skipped_by_candidate_status": 0,
+                    "skipped_by_preflight_status": 0,
                     "skipped_by_max_retry_attempts": 0,
                     "skipped_by_retry_window": 0,
                     "skipped_by_status": 0,
@@ -275,6 +341,9 @@ class CandidatePreflightAgent:
                 "retryable": 0,
                 "failed": 0,
                 "technical_rejected": 0,
+                "skipped_by_provider": 0,
+                "skipped_by_candidate_status": 0,
+                "skipped_by_preflight_status": 0,
                 "skipped_by_max_retry_attempts": 0,
                 "skipped_by_retry_window": 0,
                 "skipped_by_status": 0,
@@ -284,12 +353,12 @@ class CandidatePreflightAgent:
             }
             for candidate in candidates:
                 self._process_candidate(
-                candidate,
-                conn=conn,
-                allowed_providers=allowed_providers,
-                timeout_seconds=timeout_seconds,
-                max_size_bytes=max_size_bytes,
-                use_head_first=use_head_first,
+                    candidate,
+                    conn=conn,
+                    allowed_providers=allowed_providers,
+                    timeout_seconds=timeout_seconds,
+                    max_size_bytes=max_size_bytes,
+                    use_head_first=use_head_first,
                     fallback_to_range_get=fallback_to_range_get,
                     user_agent=user_agent,
                     keep_429_as_retryable=keep_429_as_retryable,
@@ -304,6 +373,12 @@ class CandidatePreflightAgent:
                 )
 
             reason_bits = []
+            if totals["skipped_by_provider"]:
+                reason_bits.append(f"provider={totals['skipped_by_provider']}")
+            if totals["skipped_by_candidate_status"]:
+                reason_bits.append(f"candidate_status={totals['skipped_by_candidate_status']}")
+            if totals["skipped_by_preflight_status"]:
+                reason_bits.append(f"preflight_status={totals['skipped_by_preflight_status']}")
             if totals["skipped_by_max_retry_attempts"]:
                 reason_bits.append(f"max_retry_attempts={totals['skipped_by_max_retry_attempts']}")
             if totals["skipped_by_retry_window"]:
@@ -314,16 +389,7 @@ class CandidatePreflightAgent:
                 reason_bits.append(f"missing_url={totals['skipped_by_missing_url']}")
             if totals["skipped_by_other_reason"]:
                 reason_bits.append(f"other={totals['skipped_by_other_reason']}")
-            if totals["checked"] == 0 and candidates and not any(
-                totals[key]
-                for key in (
-                    "skipped_by_max_retry_attempts",
-                    "skipped_by_retry_window",
-                    "skipped_by_status",
-                    "skipped_by_missing_url",
-                    "skipped_by_other_reason",
-                )
-            ):
+            if totals["checked"] == 0 and candidates and not reason_bits:
                 totals["skipped_by_not_selected_after_mark"] = len(candidates)
                 reason_bits.append(f"not_selected_after_mark={len(candidates)}")
 
@@ -341,6 +407,42 @@ class CandidatePreflightAgent:
             }
         finally:
             conn.close()
+
+    def _force_retry_skip_result(
+        self,
+        *,
+        provider: str | None,
+        image_id: str,
+        reason: str,
+        skip_key: str,
+        dry_run: bool,
+    ) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "provider": provider,
+            "candidates_matched": 0,
+            "forced_marked": 0,
+            "checked": 0,
+            "passed": 0,
+            "blocked": 0,
+            "retryable": 0,
+            "failed": 0,
+            "technical_rejected": 0,
+            "skipped_by_provider": 0,
+            "skipped_by_candidate_status": 0,
+            "skipped_by_preflight_status": 0,
+            "skipped_by_max_retry_attempts": 0,
+            "skipped_by_retry_window": 0,
+            "skipped_by_status": 0,
+            "skipped_by_missing_url": 0,
+            "skipped_by_other_reason": 0,
+            "skipped_by_not_selected_after_mark": 0,
+            skip_key: 1,
+            "dry_run": dry_run,
+            "image_ids": [image_id],
+            "csv_path": str(self.output_csv_path),
+            "message": f"image_id {image_id}: {reason}.",
+        }
 
     def _process_candidate(
         self,
@@ -368,7 +470,7 @@ class CandidatePreflightAgent:
                 counts["skipped_by_other_reason"] += 1
                 return
             if str(candidate.get("preflight_status") or "") not in retry_statuses:
-                counts["skipped_by_status"] += 1
+                counts["skipped_by_preflight_status"] += 1
                 return
             retry_count = int(candidate.get("preflight_retry_count") or 0)
             if retry_count >= max_retry_attempts:

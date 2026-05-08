@@ -260,10 +260,10 @@ def test_retry_preflight_only_retryable_and_force(tmp_path: Path, monkeypatch) -
     conn = db.get_connection(db_path)
     try:
         db.create_tables(conn)
-        _seed(conn, "IMG-R1", status="needs_review")
-        _seed(conn, "IMG-R2", status="needs_review")
+        _seed(conn, "IMG-R1", status="found")
+        _seed(conn, "IMG-R2", status="found")
         conn.execute("UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429', preflight_checked_at='2026-05-07T00:00:00+00:00', preflight_retry_count=0 WHERE image_id='IMG-R1'")
-        conn.execute("UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429', preflight_checked_at='2099-01-01T00:00:00+00:00', preflight_retry_count=0 WHERE image_id='IMG-R2'")
+        conn.execute("UPDATE image_candidates SET preflight_status='blocked', preflight_error='unsupported_content_type:image/vnd.djvu', preflight_checked_at='2026-05-07T00:00:00+00:00', preflight_retry_count=0 WHERE image_id='IMG-R2'")
         conn.commit()
     finally:
         conn.close()
@@ -272,7 +272,27 @@ def test_retry_preflight_only_retryable_and_force(tmp_path: Path, monkeypatch) -
     agent = CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / "out.csv")
     res = agent.run(provider="wikimedia", limit=10, retry_only=True, force=False)
     assert res["checked"] == 1
-    res_force = agent.run(provider="wikimedia", limit=10, retry_only=True, force=True)
+    db_path_force = tmp_path / "db_force.sqlite"
+    conn = db.get_connection(db_path_force)
+    try:
+        db.create_tables(conn)
+        _seed(conn, "IMG-F1", status="found")
+        _seed(conn, "IMG-F2", status="found")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429', preflight_checked_at='2026-05-07T00:00:00+00:00', preflight_retry_count=0 WHERE image_id='IMG-F1'"
+        )
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='blocked', preflight_error='unsupported_content_type:image/vnd.djvu', preflight_checked_at='2026-05-07T00:00:00+00:00', preflight_retry_count=0 WHERE image_id='IMG-F2'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    res_force = CandidatePreflightAgent(db_path=db_path_force, output_csv_path=tmp_path / "out_force.csv").run(
+        provider="wikimedia",
+        limit=10,
+        retry_only=True,
+        force=True,
+    )
     assert res_force["checked"] >= 1
 
 
@@ -422,6 +442,54 @@ def test_force_retry_now_image_id_targets_exact_candidate(tmp_path: Path, monkey
         conn.close()
     assert g1["preflight_status"] == "passed"
     assert g2["preflight_status"] == "retryable"
+
+
+def test_force_retry_now_image_id_reports_blocked_skip(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed(conn, "IMG-B1", status="found")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='blocked', preflight_error='unsupported_content_type:image/vnd.djvu' WHERE image_id='IMG-B1'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / "out.csv").force_retry_now(
+        provider="wikimedia",
+        image_id="IMG-B1",
+        reason="manual force",
+    )
+    assert result["checked"] == 0
+    assert result["skipped_by_preflight_status"] == 1
+    assert result["dry_run"] is False
+    assert "preflight_status no retryable" in result["message"]
+
+
+def test_force_retry_now_image_id_reports_provider_skip(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed(conn, "IMG-P1", status="found", provider="local_folder")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='retryable', preflight_error='http_error:429' WHERE image_id='IMG-P1'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = CandidatePreflightAgent(db_path=db_path, output_csv_path=tmp_path / "out.csv").force_retry_now(
+        provider="wikimedia",
+        image_id="IMG-P1",
+        reason="manual force",
+    )
+    assert result["checked"] == 0
+    assert result["skipped_by_provider"] == 1
+    assert result["dry_run"] is False
+    assert "provider distinto" in result["message"]
 
 
 def test_force_retry_now_does_not_approve_blocked_pdf(tmp_path: Path, monkeypatch) -> None:
