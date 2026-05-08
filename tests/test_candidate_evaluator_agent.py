@@ -180,6 +180,31 @@ def test_candidate_evaluator_rejects_preflight_non_image(tmp_path: Path, monkeyp
     assert result["technical_rejected"] == 1
 
 
+def test_candidate_evaluator_rejects_documentary_extensions(tmp_path: Path, monkeypatch) -> None:
+    sqlite_path = tmp_path / "db.sqlite"
+    csv_path = tmp_path / "image_candidates.csv"
+    conn = db.get_connection(sqlite_path)
+    try:
+        db.create_tables(conn)
+        _seed_candidate(conn, image_id="IMG-DJVU-1", image_url="https://example.com/file.djvu")
+        _seed_candidate(conn, image_id="IMG-PDF-1", image_url="https://example.com/file.pdf")
+        _seed_candidate(conn, image_id="IMG-TIFF-1", image_url="https://example.com/file.tiff")
+    finally:
+        conn.close()
+
+    monkeypatch.setattr("agents.candidate_evaluator_agent.load_config", _eval_config)
+    agent = CandidateEvaluatorAgent(db_path=sqlite_path, output_csv_path=csv_path)
+    result = agent.run(provider="wikimedia")
+    assert result["technical_rejected"] == 3
+    conn = db.get_connection(sqlite_path)
+    try:
+        rows = conn.execute("SELECT image_id, status, decision_reason FROM image_candidates ORDER BY image_id").fetchall()
+    finally:
+        conn.close()
+    assert all(row["status"] == "technical_rejected" for row in rows)
+    assert "documentary_extension:djvu" in str(rows[0]["decision_reason"])
+
+
 def test_candidate_evaluator_no_candidates_message(tmp_path: Path, monkeypatch) -> None:
     sqlite_path = tmp_path / "db.sqlite"
     csv_path = tmp_path / "image_candidates.csv"

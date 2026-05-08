@@ -6,6 +6,7 @@ import csv
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from core import db
 from core.config import load_config
@@ -108,9 +109,12 @@ class CandidateEvaluatorAgent:
         relevance_score = self._to_float(candidate.get("relevance_score"))
         preflight_content_type = str(candidate.get("preflight_content_type") or "").strip().lower()
         preflight_status = str(candidate.get("preflight_status") or "").strip().lower()
+        url_suffix = self._url_suffix(image_url)
 
         reasons: list[str] = []
 
+        if url_suffix in {".djvu", ".pdf", ".tif", ".tiff", ".svg"}:
+            return self._result("technical_rejected", 0.0, f"documentary_extension:{url_suffix.lstrip('.')}")
         if require_image_url and not image_url:
             return self._result("technical_rejected", 0.0, "missing_image_url")
         if preflight_content_type and not preflight_content_type.startswith("image/"):
@@ -244,3 +248,7 @@ class CandidateEvaluatorAgent:
             "metadata_score": round(float(metadata_score), 4),
             "decision_reason": reason,
         }
+
+    @staticmethod
+    def _url_suffix(image_url: str) -> str:
+        return Path(urlparse(image_url or "").path).suffix.lower()

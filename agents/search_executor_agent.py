@@ -7,6 +7,7 @@ import hashlib
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from core import db
 from core.config import load_config
@@ -260,6 +261,8 @@ class SearchExecutorAgent:
                 source_page = str(item.get("source_page", "") or "")
                 if not (image_url or source_page):
                     continue
+                if image_url and self._is_documentary_url(image_url):
+                    continue
                 fingerprint = f"{route['route_id']}|{image_url or source_page}"
                 if fingerprint in seen_fingerprints:
                     continue
@@ -402,3 +405,8 @@ class SearchExecutorAgent:
     def _build_image_id(sticker_id: str, provider_slug: str, fingerprint: str) -> str:
         digest = hashlib.sha1(fingerprint.encode("utf-8")).hexdigest()[:8]
         return f"IMG-{sticker_id}-{provider_slug}-{digest}"
+
+    @staticmethod
+    def _is_documentary_url(image_url: str) -> bool:
+        path = urlparse(image_url or "").path.lower()
+        return path.endswith((".djvu", ".pdf", ".tif", ".tiff", ".svg"))
