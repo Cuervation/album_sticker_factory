@@ -31,6 +31,7 @@ from core.paths import (
     SEARCH_QUERIES_CSV_PATH,
     SEARCH_ROUTES_CSV_PATH,
     IMAGE_CANDIDATES_CSV_PATH,
+    STICKERS_MANIFEST_CSV_PATH,
     ensure_directories,
 )
 
@@ -256,8 +257,8 @@ def cmd_execute_routes(args: argparse.Namespace) -> int:
         if "No search routes found" in message:
             print("Primero ejecuta python main.py route-search")
             return 0
-        if "only allows provider=" in message or "Prompt 8 only allows" in message:
-            print("En esta etapa solo se permite --provider local_folder, --provider wikimedia, --provider manual_urls o --provider auto")
+        if "Allowed providers:" in message or "only allows provider=" in message or "Prompt 8 only allows" in message:
+            print("Providers permitidos: --provider local_folder, --provider wikimedia, --provider manual_urls, --provider general_web, --provider image_search, --provider webpage o --provider auto")
             return 0
         print(f"Execute-routes failed: {message}")
         return 1
@@ -345,6 +346,121 @@ def cmd_download_approved(args: argparse.Namespace) -> int:
     print(f"- Output raw path: {result['output_dir']}")
     print(f"- CSV written: {result['csv_path']}")
     print("Warning: No se recortaron ni exportaron stickers.")
+    return 0
+
+
+def cmd_download_ready(args: argparse.Namespace) -> int:
+    ensure_directories(RUNTIME_DIRECTORIES)
+    provider = args.provider
+    limit = args.limit
+    agent = DownloadAgent()
+    try:
+        result = agent.run_download(provider=provider, limit=limit, require_approved=False)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        print(f"Download-ready failed: {exc}")
+        return 1
+    if result.get("message"):
+        print(result["message"])
+        return 0
+    print("Download ready complete.")
+    print(f"- Ready read: {result.get('ready_read', 0)}")
+    print(f"- Download attempted: {result['download_attempted']}")
+    print(f"- Downloaded: {result['downloaded']}")
+    print(f"- Skipped: {result['skipped']}")
+    print(f"- Failed: {result['failed']}")
+    print(f"- Output raw path: {result['output_dir']}")
+    print(f"- CSV written: {result['csv_path']}")
+    print("Warning: No se recortaron ni exportaron stickers.")
+    return 0
+
+
+def cmd_crop_ready(args: argparse.Namespace) -> int:
+    ensure_directories(RUNTIME_DIRECTORIES)
+    provider = args.provider
+    limit = args.limit
+    agent = CropAgent()
+    try:
+        result = agent.run(provider=provider, limit=limit)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        print(f"Crop-ready failed: {exc}")
+        return 1
+    if result.get("message"):
+        print(result["message"])
+        return 0
+    print("Crop ready complete.")
+    print(f"- Downloaded read: {result['downloaded_read']}")
+    print(f"- Cropped: {result['cropped']}")
+    print(f"- Skipped: {result['skipped']}")
+    print(f"- Output stickers path: {result['output_dir']}")
+    print(f"- Manifest written: {result['csv_path']}")
+    return 0
+
+
+def cmd_build_sticker_candidates(args: argparse.Namespace) -> int:
+    ensure_directories(RUNTIME_DIRECTORIES)
+    provider = args.provider or "auto"
+    requested_count = args.limit
+    if requested_count is not None and requested_count <= 0:
+        print("Build-sticker-candidates failed: limit must be positive.")
+        return 1
+    query_builder = QueryBuilderAgent()
+    router = SearchRouterAgent()
+    executor = SearchExecutorAgent()
+    evaluator = CandidateEvaluatorAgent()
+    preflight = CandidatePreflightAgent()
+    downloader = DownloadAgent()
+    cropper = CropAgent()
+    conn = db.get_connection()
+    try:
+        sticker_rows = [row for row in db.list_stickers(conn) if str(row.get("status")) != "exported"]
+        if not sticker_rows:
+            print("Build-sticker-candidates failed: no stickers available.")
+            return 1
+
+        completed = 0
+        execute_total = 0
+        evaluate_total = 0
+        preflight_total = 0
+        download_total = 0
+        crop_total = 0
+        for sticker in sticker_rows:
+            if requested_count is not None and completed >= requested_count:
+                break
+            sticker_ids = [sticker["sticker_id"]]
+            query_builder.run({"command": "search", "sticker_ids": sticker_ids})
+            router.run({"command": "route-search", "sticker_ids": sticker_ids})
+            execute_result = executor.run(provider=provider, limit=50, sticker_ids=sticker_ids)
+            evaluate_result = evaluator.run(provider=None, limit=50, sticker_ids=sticker_ids)
+            preflight_result = preflight.run(provider=None, limit=50, sticker_ids=sticker_ids)
+            download_result = downloader.run_download(
+                provider=None,
+                limit=50,
+                require_approved=False,
+                sticker_ids=sticker_ids,
+            )
+            crop_result = cropper.run(provider=None, limit=50, sticker_ids=sticker_ids)
+            execute_total += int(execute_result.get("candidates_created", 0))
+            evaluate_total += int(evaluate_result.get("kept_found", 0))
+            preflight_total += int(preflight_result.get("checked", 0))
+            download_total += int(download_result.get("downloaded", 0))
+            crop_total += int(crop_result.get("cropped", 0))
+            completed += int(crop_result.get("cropped", 0))
+    except Exception as exc:  # pragma: no cover - defensive guard
+        print(f"Build-sticker-candidates failed: {exc}")
+        return 1
+    finally:
+        conn.close()
+    print("Build sticker candidates complete.")
+    print(f"- Stickers selected: {len(sticker_rows)}")
+    print(f"- Stickers completed: {completed}")
+    print(f"- Requested count: {requested_count if requested_count is not None else 'all'}")
+    print(f"- Execute routes candidates: {execute_total}")
+    print(f"- Evaluate kept_found: {evaluate_total}")
+    print(f"- Preflight checked: {preflight_total}")
+    print(f"- Downloaded: {download_total}")
+    print(f"- Cropped: {crop_total}")
+    print(f"- Manifest: {STICKERS_MANIFEST_CSV_PATH}")
+    print("Warning: flujo automatico termina en carpetas de stickers; review manual queda externa.")
     return 0
 
 
@@ -535,6 +651,9 @@ def _command_map() -> Dict[str, Callable[[argparse.Namespace], int]]:
         "execute-routes": cmd_execute_routes,
         "download": lambda _: print("Usa python main.py download-approved en esta etapa.") or 0,
         "download-approved": cmd_download_approved,
+        "download-ready": cmd_download_ready,
+        "crop-ready": cmd_crop_ready,
+        "build-sticker-candidates": cmd_build_sticker_candidates,
         "evaluate": cmd_evaluate_candidates,
         "evaluate-candidates": cmd_evaluate_candidates,
         "preflight-candidates": cmd_preflight_candidates,
@@ -567,6 +686,9 @@ def build_parser() -> argparse.ArgumentParser:
             "review",
             "review-candidates",
             "download-approved",
+            "download-ready",
+            "crop-ready",
+            "build-sticker-candidates",
         }:
             cmd = subparsers.add_parser(command)
             cmd.add_argument("--provider", default=None)

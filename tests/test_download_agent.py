@@ -267,3 +267,37 @@ def test_download_agent_skips_preflight_pdf_content_type(tmp_path: Path, monkeyp
     result = DownloadAgent(db_path=db_path, output_csv_path=tmp_path / "image_candidates.csv").run(limit=5)
     assert result["downloaded"] == 0
     assert result["skipped"] == 1
+
+
+def test_download_ready_downloads_passed_without_approval(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed_sticker(conn)
+        _seed_candidate(conn, "IMG-10", "found")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='passed', local_path='' WHERE image_id='IMG-10'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr("agents.download_agent.load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr("agents.download_agent.urlopen", lambda req, timeout=0: _FakeResponse(b"abc123", "image/jpeg"))
+    result = DownloadAgent(db_path=db_path, output_csv_path=tmp_path / "image_candidates.csv").run_download(
+        provider="wikimedia",
+        limit=5,
+        require_approved=False,
+    )
+    assert result["ready_read"] == 1
+    assert result["downloaded"] == 1
+    conn = db.get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT local_path, status FROM image_candidates WHERE image_id='IMG-10'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row["status"] == "downloaded"
+    assert "/raw/" in str(row["local_path"]).replace("\\", "/")

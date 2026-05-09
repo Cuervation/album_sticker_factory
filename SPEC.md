@@ -10,8 +10,11 @@ Construir una herramienta local para planificar, rutear y ejecutar de forma cont
 - `route-search`: rutas de provider por query.
 - `execute-routes`: ejecucion de `local_folder` (offline) y `wikimedia` (descubrimiento URL).
 - `evaluate-candidates`: evaluacion por metadata (sin descarga).
-- `review-candidates` y `apply-reviews`: revision manual local sin descarga.
-- `download-approved`: descarga controlada de originales approved-only a `output/raw`.
+- `build-sticker-candidates`: flujo automatico principal sin validacion manual.
+- `review-candidates` y `apply-reviews`: revision manual local opcional / legacy.
+- `download-ready`: descarga controlada de candidatos tecnicamente validos sin approval manual.
+- `crop-ready`: recorte square final y manifiesto de stickers.
+- `download-approved`: flujo legacy approved-only a `output/raw`.
 - `preflight-candidates`: chequeo tecnico liviano de URL antes de review/download.
 - `retry-preflight`: reintento controlado de candidatos `retryable`.
 - `mark-for-retry`: marca retry manual sin red.
@@ -37,9 +40,11 @@ Construir una herramienta local para planificar, rutear y ejecutar de forma cont
 - IDs estables para stickers/queries/routes/images.
 - Las queries originales de `search_queries` no se pisan.
 - Cada provider puede usar variantes derivadas trazables en ejecucion.
-- Ningun candidato pasa a `approved` automaticamente.
+- Ningun candidato pasa a `approved` automaticamente en el flujo legacy.
 - `output/approved` sigue reservado para export final de stickers, no para este paso.
-- En Prompt 10 no hay crop ni export final.
+- `output/raw` guarda originales descargados.
+- `output/stickers` guarda stickers cuadrados listos para revision visual.
+- El flujo automatico principal termina cuando el sticker ya esta descargado y recortado.
 
 ## 5) Flujo
 1. `init`
@@ -54,8 +59,11 @@ Construir una herramienta local para planificar, rutear y ejecutar de forma cont
 10. `retry-preflight --provider wikimedia --limit N`
 11. `mark-for-retry --provider wikimedia --limit N --reason "..."`
 12. `force-retry-now --provider wikimedia --limit N --reason "..."`
-13. `download-approved --provider wikimedia --limit N`
-14. etapas futuras: crop/export
+13. `download-ready --provider auto --limit N`
+14. `crop-ready --provider auto --limit N`
+15. `build-sticker-candidates --provider auto --limit N`
+16. `download-approved --provider wikimedia --limit N`
+17. etapas legacy: review/apply-reviews
 
 ## 6) Estados permitidos
 ### Stickers

@@ -12,8 +12,11 @@ from urllib.parse import urlparse
 from core import db
 from core.config import load_config
 from core.paths import DB_PATH, IMAGE_CANDIDATES_CSV_PATH, ROOT_DIR, SEARCH_ROUTES_CSV_PATH
+from providers.general_web_provider import GeneralWebProvider
+from providers.image_search_provider import ImageSearchProvider
 from providers.local_folder_provider import LocalFolderProvider
 from providers.manual_urls_provider import ManualUrlsProvider
+from providers.webpage_provider import WebpageProvider
 from providers.wikimedia_provider import WikimediaProvider
 
 
@@ -28,30 +31,27 @@ class SearchExecutorAgent:
         self.db_path = Path(db_path or DB_PATH)
         self.output_csv_path = Path(output_csv_path or IMAGE_CANDIDATES_CSV_PATH)
 
-    def run(self, provider: str = "local_folder", limit: int | None = None) -> dict[str, Any]:
+    def run(
+        self,
+        provider: str = "local_folder",
+        limit: int | None = None,
+        sticker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
         config = load_config()
         exec_cfg = config.get("search_execution", {})
         if not exec_cfg.get("enabled", True):
             raise ValueError("search_execution.enabled is false.")
 
         execute_map = exec_cfg.get("execute_providers", {})
-        allowed_prompt8 = {"local_folder", "wikimedia", "manual_urls", "auto"}
-        if provider not in allowed_prompt8:
-            raise ValueError("Prompt 8 only allows provider=local_folder, provider=wikimedia, provider=manual_urls or provider=auto.")
+        allowed_providers = {"local_folder", "wikimedia", "manual_urls", "general_web", "image_search", "webpage", "auto"}
+        if provider not in allowed_providers:
+            raise ValueError("Allowed providers: local_folder, wikimedia, manual_urls, general_web, image_search, webpage, auto.")
         if provider not in {"auto"} and not bool(execute_map.get(provider, False)):
             raise ValueError(f"{provider} execution is disabled in config.")
 
-        # Reject accidentally enabled unsupported providers in this prompt.
-        for provider_name, enabled in execute_map.items():
-            if provider_name not in allowed_prompt8 and bool(enabled):
-                raise ValueError(
-                    f"Provider '{provider_name}' is not allowed in Prompt 8. Disable external providers."
-                )
-
-        search_max = int(exec_cfg.get("max_routes_per_run", 20))
-        requested_limit = limit if limit is not None else search_max
+        default_limit = int(exec_cfg.get("max_routes_per_run", 20))
+        requested_limit = limit if limit is not None else default_limit
         effective_limit = requested_limit
-        effective_limit = min(effective_limit, search_max)
         if effective_limit <= 0:
             raise ValueError("Route limit must be positive.")
 
@@ -66,27 +66,53 @@ class SearchExecutorAgent:
                 order = list(source_cfg.get("enabled_order", ["manual_urls", "local_folder", "wikimedia"]))
                 enabled = source_cfg.get("providers", {})
                 routes = []
-                for provider_name in order:
-                    if not bool(enabled.get(provider_name, {}).get("enabled", False)):
-                        continue
-                    routes.extend(
-                        db.list_search_routes_with_context(
-                            conn=conn,
-                            provider=provider_name,
-                            statuses=("pending", "skipped", "failed"),
-                            limit=effective_limit,
+                if sticker_ids:
+                    for provider_name in order:
+                        if not bool(enabled.get(provider_name, {}).get("enabled", False)):
+                            continue
+                        routes.extend(
+                            db.list_search_routes_for_stickers(
+                                conn=conn,
+                                sticker_ids=sticker_ids,
+                                provider=provider_name,
+                                statuses=("pending", "skipped", "failed"),
+                                limit=effective_limit,
+                            )
                         )
-                    )
-                    if len(routes) >= effective_limit:
-                        break
-                routes = routes[:effective_limit]
+                        if len(routes) >= effective_limit:
+                            break
+                    routes = routes[:effective_limit]
+                else:
+                    for provider_name in order:
+                        if not bool(enabled.get(provider_name, {}).get("enabled", False)):
+                            continue
+                        routes.extend(
+                            db.list_search_routes_with_context(
+                                conn=conn,
+                                provider=provider_name,
+                                statuses=("pending", "skipped", "failed"),
+                                limit=effective_limit,
+                            )
+                        )
+                        if len(routes) >= effective_limit:
+                            break
+                    routes = routes[:effective_limit]
             else:
-                routes = db.list_search_routes_with_context(
-                    conn=conn,
-                    provider=provider,
-                    statuses=("pending", "skipped", "failed"),
-                    limit=effective_limit,
-                )
+                if sticker_ids:
+                    routes = db.list_search_routes_for_stickers(
+                        conn=conn,
+                        sticker_ids=sticker_ids,
+                        provider=provider,
+                        statuses=("pending", "skipped", "failed"),
+                        limit=effective_limit,
+                    )
+                else:
+                    routes = db.list_search_routes_with_context(
+                        conn=conn,
+                        provider=provider,
+                        statuses=("pending", "skipped", "failed"),
+                        limit=effective_limit,
+                    )
             if not routes:
                 existing_rows = db.list_image_candidates(conn)
                 db.export_search_routes_csv(conn, SEARCH_ROUTES_CSV_PATH)
@@ -116,8 +142,10 @@ class SearchExecutorAgent:
                 result = self._execute_local_folder(conn=conn, routes=routes, config=config)
             elif provider == "manual_urls":
                 result = self._execute_manual_urls(conn=conn, routes=routes, config=config)
-            else:
+            elif provider == "wikimedia":
                 result = self._execute_wikimedia(conn=conn, routes=routes, config=config)
+            else:
+                result = self._execute_external_provider(conn=conn, routes=routes, config=config, provider_name=provider)
 
             exported_rows = db.list_image_candidates(conn)
             db.export_search_routes_csv(conn, SEARCH_ROUTES_CSV_PATH)
@@ -223,11 +251,6 @@ class SearchExecutorAgent:
         max_results = int(ext_cfg.get("max_results_per_route", 5))
         if max_results <= 0:
             raise ValueError("external_search.max_results_per_route must be positive.")
-
-        ext_routes_limit = int(ext_cfg.get("max_routes_per_run", len(routes)))
-        if ext_routes_limit <= 0:
-            raise ValueError("external_search.max_routes_per_run must be positive.")
-        routes = routes[:ext_routes_limit]
 
         provider_impl = WikimediaProvider()
         route_outcomes: dict[str, tuple[str, str]] = {}
@@ -473,25 +496,26 @@ class SearchExecutorAgent:
 
     def _execute_auto(self, conn: Any, routes: list[dict[str, Any]], config: dict[str, Any]) -> dict[str, Any]:
         source_cfg = config.get("source_providers", {})
-        order = list(source_cfg.get("enabled_order", ["manual_urls", "local_folder", "wikimedia"]))
+        order = list(
+            source_cfg.get(
+                "enabled_order",
+                ["manual_urls", "local_folder", "wikimedia", "image_search", "general_web", "webpage"],
+            )
+        )
         providers = source_cfg.get("providers", {})
-        search_cfg = config.get("search_execution", {})
-        search_max = int(search_cfg.get("max_routes_per_run", len(routes) or 1))
         summaries: list[dict[str, Any]] = []
         total_created = 0
         total_skipped = 0
         total_unsupported = 0
         total_duplicates = 0
         useful = 0
+        routes_by_provider: dict[str, list[dict[str, Any]]] = {}
+        for route in routes:
+            routes_by_provider.setdefault(str(route.get("provider") or ""), []).append(route)
         for provider_name in order:
             if not bool(providers.get(provider_name, {}).get("enabled", False)):
                 continue
-            provider_routes = db.list_search_routes_with_context(
-                conn=conn,
-                provider=provider_name,
-                statuses=("pending", "skipped", "failed"),
-                limit=search_max,
-            )
+            provider_routes = routes_by_provider.get(provider_name, [])
             if not provider_routes:
                 continue
             if provider_name == "manual_urls":
@@ -501,15 +525,13 @@ class SearchExecutorAgent:
             elif provider_name == "wikimedia":
                 result = self._execute_wikimedia(conn, provider_routes, config)
             else:
-                continue
+                result = self._execute_external_provider(conn, provider_routes, config, provider_name)
             summaries.append(result)
             total_created += int(result.get("candidates_created", 0))
             total_skipped += int(result.get("routes_skipped", 0))
             total_unsupported += int(result.get("unsupported_skipped", 0))
             total_duplicates += int(result.get("duplicates_skipped", 0))
             useful += int(result.get("candidates_created", 0))
-            if useful > 0:
-                break
         self._export_search_routes_csv(conn)
         return {
             "status": "ok",
@@ -527,6 +549,153 @@ class SearchExecutorAgent:
             "csv_path": str(self.output_csv_path),
             "provider_summaries": summaries,
         }
+
+    def _execute_external_provider(
+        self,
+        conn: Any,
+        routes: list[dict[str, Any]],
+        config: dict[str, Any],
+        provider_name: str,
+    ) -> dict[str, Any]:
+        ext_cfg = config.get("external_search", {})
+        if not ext_cfg.get("enabled", False):
+            raise ValueError("external_search.enabled is false.")
+        if not ext_cfg.get("allow_internet", False):
+            raise ValueError("external_search.allow_internet is false.")
+        allowed_real = set(ext_cfg.get("allowed_real_providers", []))
+        if provider_name not in allowed_real:
+            raise ValueError(f"{provider_name} is not listed in external_search.allowed_real_providers.")
+
+        timeout_seconds = int(ext_cfg.get("timeout_seconds", 15))
+        user_agent = str(ext_cfg.get("user_agent", "album_sticker_factory/0.1 local research tool"))
+        max_results = int(ext_cfg.get("max_results_per_route", 5))
+        if max_results <= 0:
+            raise ValueError("external_search.max_results_per_route must be positive.")
+
+        impl_map = {
+            "general_web": GeneralWebProvider,
+            "image_search": ImageSearchProvider,
+            "webpage": WebpageProvider,
+        }
+        impl_cls = impl_map.get(provider_name)
+        if impl_cls is None:
+            raise ValueError(f"Unsupported external provider: {provider_name}")
+        provider_impl = impl_cls()
+
+        route_outcomes: dict[str, tuple[str, str]] = {}
+        candidate_rows: list[dict[str, Any]] = []
+        routes_executed = 0
+        query_variants_tried = 0
+        executed_query_examples: list[str] = []
+        duplicates_skipped = 0
+        for route in routes:
+            routes_executed += 1
+            response = provider_impl.run(
+                {
+                    "allow_internet": True,
+                    "original_query": route["query"],
+                    "target_name": route.get("target_name"),
+                    "chapter_title": route.get("chapter_title"),
+                    "category": route.get("category"),
+                    "max_query_variants": 4,
+                    "max_results": max_results,
+                    "timeout_seconds": timeout_seconds,
+                    "user_agent": user_agent,
+                }
+            )
+            query_variants_tried += int(response.get("query_variants_tried", 0))
+            used_queries = response.get("tried_queries", [])
+            collected: list[dict[str, Any]] = []
+            seen_fingerprints: set[str] = set()
+            seen_canonical_keys: set[str] = set()
+            status = response.get("status")
+            if status == "disabled":
+                route_outcomes[route["route_id"]] = ("failed", "disabled_by_config")
+                time.sleep(0.2)
+                continue
+            if status != "ok":
+                error_type = str(response.get("error_type", "provider_exception"))
+                error_detail = str(response.get("error_detail", "")).strip().replace(";", ",")
+                if error_type == "http_error" and error_detail:
+                    reason = f"http_error:{error_detail}"
+                elif error_type == "url_error" and error_detail:
+                    reason = f"url_error:{error_detail}"
+                elif error_type == "json_error":
+                    reason = "json_error"
+                elif error_detail:
+                    reason = f"provider_exception:{error_detail}"
+                else:
+                    reason = "provider_exception:unknown"
+                route_outcomes[route["route_id"]] = ("failed", reason)
+                time.sleep(0.2)
+                continue
+
+            found = response.get("candidates", [])
+            for item in found:
+                image_url = str(item.get("image_url", "") or "")
+                source_page = str(item.get("source_page", "") or "")
+                if not (image_url or source_page):
+                    continue
+                if image_url and self._is_documentary_url(image_url):
+                    continue
+                canonical_key = db.canonical_media_key(provider_name, image_url, source_page)
+                if canonical_key in seen_canonical_keys:
+                    duplicates_skipped += 1
+                    continue
+                if db.image_candidate_exists_for_canonical(conn, canonical_key):
+                    duplicates_skipped += 1
+                    continue
+                seen_canonical_keys.add(canonical_key)
+                fingerprint = f"{route['route_id']}|{image_url or source_page}"
+                if fingerprint in seen_fingerprints:
+                    continue
+                seen_fingerprints.add(fingerprint)
+                collected.append(
+                    {
+                        "image_id": self._build_image_id(
+                            sticker_id=route["sticker_id"],
+                            provider_slug=provider_name.replace("_", "-"),
+                            fingerprint=fingerprint,
+                        ),
+                        "sticker_id": route["sticker_id"],
+                        "query_id": route["query_id"],
+                        "provider": provider_name,
+                        "source_page": source_page,
+                        "image_url": image_url,
+                        "local_path": "",
+                        "executed_query": str(item.get("executed_query", "")),
+                        "width": item.get("width"),
+                        "height": item.get("height"),
+                        "quality_score": None,
+                        "relevance_score": item.get("relevance_score", 0.0),
+                        "duplicate_group": db.duplicate_group_key(canonical_key),
+                        "license_status": item.get("license_status", "needs_manual_review"),
+                        "status": "found",
+                    }
+                )
+            if collected:
+                first_query = (collected[0].get("executed_query") or "").replace(";", ",")
+                route_outcomes[route["route_id"]] = ("routed", f"candidates_found:{len(collected)};executed_query:{first_query}")
+                if first_query and len(executed_query_examples) < 5:
+                    executed_query_examples.append(first_query)
+                candidate_rows.extend(collected)
+            else:
+                route_outcomes[route["route_id"]] = ("skipped", f"no_results;tried_queries:{max(1, len(used_queries))}")
+            time.sleep(0.2)
+
+        created_count = db.upsert_image_candidates(conn, candidate_rows)
+        db.update_search_routes_outcome(conn, route_outcomes)
+        return self._build_result_summary(
+            provider=provider_name,
+            routes=routes,
+            routes_executed=routes_executed,
+            images_found=0,
+            candidates_created=created_count,
+            outcomes=route_outcomes,
+            query_variants_tried=query_variants_tried,
+            executed_query_examples=executed_query_examples,
+            duplicates_skipped=duplicates_skipped,
+        )
 
     def _build_result_summary(
         self,

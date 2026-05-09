@@ -58,6 +58,11 @@ class SearchRouterAgent:
         if not routing_cfg.get("enabled", True):
             raise ValueError("search_routing.enabled is false.")
 
+        payload = payload or {}
+        sticker_ids = payload.get("sticker_ids")
+        if sticker_ids is not None and not isinstance(sticker_ids, list):
+            sticker_ids = [str(sticker_ids)]
+
         provider_cfg: dict[str, Any] = routing_cfg.get("providers", {})
         enabled_providers = {
             name: cfg
@@ -75,6 +80,9 @@ class SearchRouterAgent:
         try:
             db.create_tables(conn)
             query_rows = db.list_search_queries_for_routing(conn)
+            if sticker_ids:
+                sticker_id_set = {str(item) for item in sticker_ids if str(item).strip()}
+                query_rows = [row for row in query_rows if str(row.get("sticker_id")) in sticker_id_set]
             if not query_rows:
                 raise ValueError("No search queries found. Primero ejecuta python main.py search")
 

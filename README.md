@@ -42,6 +42,9 @@ python main.py execute-routes --provider wikimedia --limit 20
 python main.py evaluate-candidates --provider wikimedia
 python main.py preflight-candidates --provider wikimedia --limit 50
 python main.py retry-preflight --provider wikimedia --limit 20
+python main.py build-sticker-candidates --provider auto --limit 20
+python main.py download-ready --provider auto --limit 20
+python main.py crop-ready --provider auto --limit 20
 python main.py review-candidates
 python main.py apply-reviews
 python main.py download-approved --provider wikimedia --limit 10
@@ -130,7 +133,14 @@ Estados usados en esta etapa:
 
 Importante: no descarga imagenes, no recorta y no aprueba automaticamente.
 
-## Revision manual (Prompt 9)
+## Flujo automatico principal
+- `python main.py build-sticker-candidates --provider auto --limit 20`
+- Este flujo hace: `execute-routes -> evaluate-candidates -> preflight-candidates -> download-ready -> crop-ready`.
+- La revision manual es externa: mirar `output/stickers/<sticker_id>/` y borrar o mover archivos a mano.
+- `output/raw` guarda originales descargados.
+- `output/stickers` guarda stickers cuadrados listos para revisar visualmente.
+
+## Revision manual (Prompt 9, legacy)
 - `python main.py review-candidates` genera:
   - `reports/review_candidates.html` con tarjetas de candidatos `needs_review`,
   - `data/review_decisions.csv` para decision manual.
@@ -142,7 +152,7 @@ Importante: no descarga imagenes, no recorta y no aprueba automaticamente.
 
 Este paso no descarga imagenes. `approved` significa candidato aprobado para una proxima etapa controlada, no sticker final exportado.
 
-## Descarga controlada approved-only (Prompt 10)
+## Descarga controlada approved-only (Prompt 10, legacy)
 - `python main.py download-approved --provider wikimedia --limit 10`
 - Descarga solo candidatos `image_candidates.status=approved`.
 - Guarda originales en `output/raw/{chapter_slug}/{sticker_id}/{image_id}.{ext}`.

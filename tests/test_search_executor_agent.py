@@ -174,7 +174,50 @@ def test_executor_runs_wikimedia_with_mock_provider(tmp_path: Path, monkeypatch)
     assert "candidates_found:" in str(row["reason"])
 
 
-def test_executor_rejects_external_provider(tmp_path: Path, monkeypatch) -> None:
+def test_executor_runs_general_web_with_mock_provider(tmp_path: Path, monkeypatch) -> None:
+    sqlite_path = tmp_path / "db.sqlite"
+    local_dir = tmp_path / "local_images"
+    local_dir.mkdir(parents=True, exist_ok=True)
+    conn = db.get_connection(sqlite_path)
+    try:
+        _seed_minimal_query_route(conn, provider="general_web")
+    finally:
+        conn.close()
+
+    class FakeGeneralWebProvider:
+        def run(self, payload=None):  # noqa: ANN001
+            return {
+                "status": "ok",
+                "provider": "general_web",
+                "query_variants_tried": 1,
+                "tried_queries": ["San Lorenzo de Almagro"],
+                "candidates": [
+                    {
+                        "source_page": "https://es.wikipedia.org/wiki/Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro",
+                        "image_url": "https://upload.wikimedia.org/test-general.jpg",
+                        "width": 1024,
+                        "height": 768,
+                        "license_status": "needs_manual_review",
+                        "relevance_score": 0.7,
+                        "executed_query": "San Lorenzo de Almagro",
+                    }
+                ],
+            }
+
+    cfg = _base_config(local_dir)
+    cfg["search_execution"]["execute_providers"]["general_web"] = True
+    cfg["external_search"]["allowed_real_providers"] = ["wikimedia", "general_web"]
+
+    monkeypatch.setattr("agents.search_executor_agent.load_config", lambda: cfg)
+    monkeypatch.setattr("agents.search_executor_agent.GeneralWebProvider", FakeGeneralWebProvider)
+
+    agent = SearchExecutorAgent(db_path=sqlite_path, output_csv_path=tmp_path / "image_candidates.csv")
+    result = agent.run(provider="general_web", limit=5)
+    assert result["candidates_created"] == 1
+    assert result["routes_routed"] == 1
+    assert result["query_variants_tried"] == 1
+
+def test_executor_rejects_disabled_provider(tmp_path: Path, monkeypatch) -> None:
     sqlite_path = tmp_path / "db.sqlite"
     local_dir = tmp_path / "local_images"
     monkeypatch.setattr("agents.search_executor_agent.load_config", lambda: _base_config(local_dir))
@@ -182,10 +225,7 @@ def test_executor_rejects_external_provider(tmp_path: Path, monkeypatch) -> None
     try:
         agent.run(provider="general_web")
     except ValueError as exc:
-        assert "provider=local_folder" in str(exc)
-        assert "provider=wikimedia" in str(exc)
-        assert "provider=manual_urls" in str(exc)
-        assert "provider=auto" in str(exc)
+        assert "execution is disabled in config" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("Expected ValueError for external provider")
 
@@ -354,7 +394,7 @@ def test_executor_reports_requested_and_effective_limit_and_exports_routes_csv(t
     agent = SearchExecutorAgent(db_path=sqlite_path, output_csv_path=tmp_path / "image_candidates.csv")
     result = agent.run(provider="wikimedia", limit=200)
     assert result["requested_limit"] == 200
-    assert result["effective_limit"] == 20
+    assert result["effective_limit"] == 200
     assert result["search_routes_csv_path"].endswith("search_routes.csv")
     assert Path(result["search_routes_csv_path"]).exists()
     with Path(result["search_routes_csv_path"]).open("r", encoding="utf-8", newline="") as fh:

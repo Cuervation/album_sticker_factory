@@ -103,11 +103,15 @@ def test_canonical_media_key_ignores_utm(tmp_path: Path) -> None:
         "https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=a",
     )
     key2 = db.canonical_media_key(
-        "wikimedia",
+        "openverse",
         "https://upload.wikimedia.org/same.jpg?utm_source=c",
         "https://commons.wikimedia.org/wiki/File:Same.jpg?utm_source=d",
     )
     assert key1 == key2
+
+
+def test_canonical_media_key_keeps_provider_for_pathless_items() -> None:
+    assert db.canonical_media_key("local_folder", "", "") == "local_folder|"
 
 
 def test_list_candidates_for_retry_mark_uses_preflight_status(tmp_path: Path) -> None:

@@ -51,16 +51,23 @@ class QueryBuilderAgent:
         self.stickers_csv_path = Path(stickers_csv_path or STICKER_TARGETS_CSV_PATH)
         self.output_csv_path = Path(output_csv_path or SEARCH_QUERIES_CSV_PATH)
 
-    def load_stickers(self) -> list[dict[str, Any]]:
+    def load_stickers(self, sticker_ids: list[str] | None = None) -> list[dict[str, Any]]:
         """Load stickers from SQLite, fallback to sticker_targets.csv."""
+        sticker_id_set = {str(item) for item in sticker_ids or [] if str(item).strip()}
         stickers: list[dict[str, Any]] = []
         if self.db_path.exists():
             conn = db.get_connection(self.db_path)
             try:
                 db.create_tables(conn)
-                stickers = db.list_stickers(conn)
+                if sticker_id_set:
+                    stickers = db.list_stickers_by_ids(conn, sorted(sticker_id_set))
+                else:
+                    stickers = db.list_stickers(conn)
             finally:
                 conn.close()
+
+        if sticker_id_set:
+            stickers = [row for row in stickers if str(row.get("sticker_id")) in sticker_id_set]
 
         if stickers:
             return stickers
@@ -70,6 +77,8 @@ class QueryBuilderAgent:
 
         with self.stickers_csv_path.open("r", encoding="utf-8", newline="") as fh:
             rows = list(csv.DictReader(fh))
+        if sticker_id_set:
+            rows = [row for row in rows if str(row.get("sticker_id")) in sticker_id_set]
         return rows
 
     def normalize_query(self, query: str) -> str:
@@ -179,10 +188,17 @@ class QueryBuilderAgent:
         if max_queries <= 0:
             raise ValueError("pipeline.max_queries_per_sticker must be a positive integer.")
 
-        stickers = self.load_stickers()
+        payload = payload or {}
+        sticker_ids = payload.get("sticker_ids")
+        if sticker_ids is not None and not isinstance(sticker_ids, list):
+            sticker_ids = [str(sticker_ids)]
+
+        stickers = self.load_stickers(sticker_ids=sticker_ids)
         if not stickers:
+            if sticker_ids:
+                raise ValueError("No stickers found for selected sticker_ids.")
             raise ValueError("No stickers found. Primero ejecuta python main.py plan")
-        if len(stickers) != 600:
+        if not sticker_ids and len(stickers) != 600:
             raise ValueError(f"Expected 600 stickers, found {len(stickers)}.")
 
         all_queries: list[dict[str, str]] = []

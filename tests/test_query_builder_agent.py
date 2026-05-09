@@ -124,3 +124,20 @@ def test_query_builder_requires_existing_stickers(tmp_path: Path) -> None:
     else:  # pragma: no cover - safety guard
         raise AssertionError("Expected ValueError when no stickers exist")
 
+
+def test_query_builder_can_target_specific_stickers(tmp_path: Path) -> None:
+    _, _, stickers_csv, queries_csv, sqlite_path = _setup_curated_workspace(tmp_path)
+    sticker_rows = _read_csv(stickers_csv)
+    target_ids = [sticker_rows[0]["sticker_id"], sticker_rows[1]["sticker_id"]]
+    agent = QueryBuilderAgent(
+        db_path=sqlite_path,
+        stickers_csv_path=stickers_csv,
+        output_csv_path=queries_csv,
+    )
+    result = agent.run({"sticker_ids": target_ids})
+    rows = _read_csv(queries_csv)
+
+    assert result["stickers_count"] == 2
+    assert result["generated_queries"] == 10
+    assert len(rows) == 10
+    assert {row["sticker_id"] for row in rows} == set(target_ids)

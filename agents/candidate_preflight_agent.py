@@ -35,6 +35,7 @@ class CandidatePreflightAgent:
         retry_only: bool = False,
         force: bool = False,
         image_id: str | None = None,
+        sticker_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         cfg = load_config().get("candidate_preflight", {})
         if not bool(cfg.get("enabled", True)):
@@ -79,6 +80,7 @@ class CandidatePreflightAgent:
                     statuses=statuses_to_check,
                     provider=provider,
                     image_id=image_id,
+                    sticker_ids=sticker_ids,
                     limit=effective_limit,
                 )
             if not candidates:

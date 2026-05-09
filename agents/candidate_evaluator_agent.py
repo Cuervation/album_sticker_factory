@@ -24,7 +24,12 @@ class CandidateEvaluatorAgent:
         self.db_path = Path(db_path or DB_PATH)
         self.output_csv_path = Path(output_csv_path or IMAGE_CANDIDATES_CSV_PATH)
 
-    def run(self, provider: str | None = None, limit: int | None = None) -> dict[str, Any]:
+    def run(
+        self,
+        provider: str | None = None,
+        limit: int | None = None,
+        sticker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
         config = load_config()
         eval_cfg = config.get("candidate_evaluation", {})
         if not bool(eval_cfg.get("enabled", True)):
@@ -50,6 +55,7 @@ class CandidateEvaluatorAgent:
             candidates = db.list_image_candidates_for_evaluation(
                 conn=conn,
                 provider=provider,
+                sticker_ids=sticker_ids,
                 limit=limit,
             )
             updates: list[dict[str, Any]] = []

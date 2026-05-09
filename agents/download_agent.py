@@ -36,10 +36,20 @@ class DownloadAgent:
         self.output_csv_path = Path(output_csv_path or IMAGE_CANDIDATES_CSV_PATH)
 
     def run(self, provider: str | None = None, limit: int | None = None) -> dict[str, Any]:
+        return self.run_download(provider=provider, limit=limit, require_approved=True)
+
+    def run_download(
+        self,
+        provider: str | None = None,
+        limit: int | None = None,
+        *,
+        require_approved: bool = True,
+        sticker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
         cfg = load_config().get("download", {})
         if not bool(cfg.get("enabled", True)):
             raise ValueError("download.enabled is false.")
-        if not bool(cfg.get("approved_only", True)):
+        if require_approved and not bool(cfg.get("approved_only", True)):
             raise ValueError("Prompt 10 requires download.approved_only=true for safety.")
 
         output_dir = self._resolve_output_dir(str(cfg.get("output_dir", "output/raw")))
@@ -52,26 +62,37 @@ class DownloadAgent:
         allowed_mime_prefixes = tuple(str(p) for p in cfg.get("allowed_mime_prefixes", ["image/"]))
         user_agent = str(cfg.get("user_agent", "album_sticker_factory/0.1 local download tool"))
 
+        provider = None if provider in {None, "", "auto"} else provider
         effective_limit = limit if limit is not None else max_per_run
-        effective_limit = min(effective_limit, max_per_run)
         if effective_limit <= 0:
             raise ValueError("Download limit must be positive.")
 
         conn = db.get_connection(self.db_path)
         try:
             db.create_tables(conn)
-            approved_total = db.count_rows(conn, "image_candidates")
-            candidates = db.list_approved_candidates_for_download(
-                conn=conn,
-                provider=provider,
-                limit=effective_limit,
-            )
+            if require_approved:
+                candidates = db.list_approved_candidates_for_download(
+                    conn=conn,
+                    provider=provider,
+                    sticker_ids=sticker_ids,
+                    limit=effective_limit,
+                )
+            else:
+                candidates = db.list_ready_candidates_for_download(
+                    conn=conn,
+                    provider=provider,
+                    sticker_ids=sticker_ids,
+                    limit=effective_limit,
+                )
+            if sticker_ids:
+                candidates = self._one_candidate_per_sticker(candidates)
             if not candidates:
                 exported_rows = db.list_image_candidates(conn)
                 self._export_candidates_csv(exported_rows)
+                count_key = "approved_read" if require_approved else "ready_read"
                 return {
                     "status": "ok",
-                    "approved_read": 0,
+                    count_key: 0,
                     "download_attempted": 0,
                     "downloaded": 0,
                     "skipped": 0,
@@ -81,6 +102,8 @@ class DownloadAgent:
                     "message": (
                         "No hay candidatos approved para descargar. "
                         "Edita data/review_decisions.csv y ejecuta apply-reviews."
+                        if require_approved
+                        else "No hay candidatos listos para descargar."
                     ),
                 }
 
@@ -96,6 +119,7 @@ class DownloadAgent:
                     allowed_extensions=allowed_extensions,
                     allowed_mime_prefixes=allowed_mime_prefixes,
                     user_agent=user_agent,
+                    require_approved=require_approved,
                 )
                 if result["action"] == "downloaded":
                     counts["downloaded"] += 1
@@ -132,7 +156,7 @@ class DownloadAgent:
         self._export_candidates_csv(exported_rows)
         return {
             "status": "ok",
-            "approved_read": len(candidates),
+            ("approved_read" if require_approved else "ready_read"): len(candidates),
             "download_attempted": counts["attempted"],
             "downloaded": counts["downloaded"],
             "skipped": counts["skipped"],
@@ -140,6 +164,22 @@ class DownloadAgent:
             "csv_path": str(self.output_csv_path),
             "output_dir": str(output_dir),
         }
+
+    @staticmethod
+    def _one_candidate_per_sticker(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        best: dict[str, dict[str, Any]] = {}
+        for candidate in candidates:
+            sticker_id = str(candidate.get("sticker_id") or "")
+            if not sticker_id:
+                continue
+            current = best.get(sticker_id)
+            score = float(candidate.get("relevance_score") or 0.0)
+            current_score = float(current.get("relevance_score") or 0.0) if current else -1.0
+            if current is None or score > current_score or (
+                score == current_score and str(candidate.get("image_id") or "") < str(current.get("image_id") or "")
+            ):
+                best[sticker_id] = candidate
+        return list(best.values())
 
     def _download_one(
         self,
@@ -152,11 +192,14 @@ class DownloadAgent:
         allowed_extensions: set[str],
         allowed_mime_prefixes: tuple[str, ...],
         user_agent: str,
+        require_approved: bool,
     ) -> dict[str, Any]:
         image_id = str(candidate["image_id"])
         status = str(candidate.get("status", ""))
-        if status != "approved":
+        if require_approved and status != "approved":
             return {"action": "failed", "download_error": "not_approved"}
+        if not require_approved and status not in {"found", "needs_review", "approved"}:
+            return {"action": "failed", "download_error": "not_ready"}
         preflight_status = str(candidate.get("preflight_status") or "").strip().lower()
         preflight_error = str(candidate.get("preflight_error") or "").strip()
         if preflight_status == "blocked":

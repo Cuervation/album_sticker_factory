@@ -134,6 +134,8 @@ def create_tables(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "image_candidates", "file_size_bytes", "INTEGER")
     _ensure_column(conn, "image_candidates", "downloaded_at", "TEXT")
     _ensure_column(conn, "image_candidates", "download_error", "TEXT")
+    _ensure_column(conn, "image_candidates", "exported_at", "TEXT")
+    _ensure_column(conn, "image_candidates", "cropped_path", "TEXT")
     _ensure_column(conn, "image_candidates", "preflight_status", "TEXT")
     _ensure_column(conn, "image_candidates", "preflight_error", "TEXT")
     _ensure_column(conn, "image_candidates", "preflight_content_type", "TEXT")
@@ -321,10 +323,14 @@ def get_sticker_counts_by_chapter(conn: sqlite3.Connection) -> dict[str, int]:
     return {str(row["chapter_id"]): int(row["c"]) for row in rows}
 
 
-def list_stickers(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_stickers(conn: sqlite3.Connection, limit: int | None = None) -> list[dict[str, Any]]:
     """List stickers in deterministic order."""
+    limit_sql = " LIMIT ?" if limit is not None else ""
+    params: list[Any] = []
+    if limit is not None:
+        params.append(limit)
     rows = conn.execute(
-        """
+        f"""
         SELECT
             sticker_id,
             chapter_id,
@@ -338,7 +344,36 @@ def list_stickers(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             status
         FROM stickers
         ORDER BY chapter_id, sticker_id
-        """
+        {limit_sql}
+        """,
+        params,
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def list_stickers_by_ids(conn: sqlite3.Connection, sticker_ids: list[str]) -> list[dict[str, Any]]:
+    """List specific stickers in deterministic order."""
+    if not sticker_ids:
+        return []
+    placeholders = ", ".join(["?"] * len(sticker_ids))
+    rows = conn.execute(
+        f"""
+        SELECT
+            sticker_id,
+            chapter_id,
+            chapter_title,
+            chapter_slug,
+            category,
+            target_name,
+            rarity,
+            priority,
+            search_hint,
+            status
+        FROM stickers
+        WHERE sticker_id IN ({placeholders})
+        ORDER BY chapter_id, sticker_id
+        """,
+        sticker_ids,
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -521,6 +556,54 @@ def list_search_routes_with_context(
     return [dict(row) for row in rows]
 
 
+def list_search_routes_for_stickers(
+    conn: sqlite3.Connection,
+    sticker_ids: list[str],
+    statuses: tuple[str, ...] = ("pending", "skipped", "failed"),
+    provider: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List routes for specific stickers joined with query and sticker metadata."""
+    if not sticker_ids:
+        return []
+    status_placeholders = ", ".join(["?"] * len(statuses))
+    sticker_placeholders = ", ".join(["?"] * len(sticker_ids))
+    limit_sql = " LIMIT ?" if limit is not None else ""
+    params: list[Any] = [*sticker_ids, *statuses]
+    if provider:
+        params.append(provider)
+    if limit is not None:
+        params.append(limit)
+    provider_clause = " AND r.provider = ?" if provider else ""
+    rows = conn.execute(
+        f"""
+        SELECT
+            r.route_id,
+            r.query_id,
+            r.sticker_id,
+            r.provider,
+            r.priority,
+            r.status AS route_status,
+            r.reason,
+            q.query,
+            s.chapter_id,
+            s.chapter_title,
+            s.chapter_slug,
+            s.category,
+            s.target_name
+        FROM search_routes r
+        JOIN search_queries q ON q.query_id = r.query_id
+        JOIN stickers s ON s.sticker_id = r.sticker_id
+        WHERE r.sticker_id IN ({sticker_placeholders})
+          AND r.status IN ({status_placeholders}){provider_clause}
+        ORDER BY r.priority ASC, r.query_id ASC
+        {limit_sql}
+        """,
+        params,
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def upsert_image_candidates(conn: sqlite3.Connection, candidates: list[dict[str, Any]]) -> int:
     """Upsert image candidates by stable image_id."""
     if not candidates:
@@ -697,7 +780,7 @@ def canonical_media_key(provider: str, image_url: str, source_page: str) -> str:
     query_pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if not k.lower().startswith("utm_")]
     query = urlencode(sorted(query_pairs))
     normalized = urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), path, "", query, ""))
-    return f"{provider}|{normalized}"
+    return normalized
 
 
 def image_candidate_exists_for_canonical(conn: sqlite3.Connection, canonical_key: str) -> bool:
@@ -813,6 +896,7 @@ def list_image_candidates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 def list_image_candidates_for_evaluation(
     conn: sqlite3.Connection,
     provider: str | None = None,
+    sticker_ids: list[str] | None = None,
     statuses: tuple[str, ...] = ("found", "needs_review", "technical_rejected", "semantic_rejected"),
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
@@ -822,6 +906,9 @@ def list_image_candidates_for_evaluation(
     if provider:
         where_clauses.append("provider = ?")
         params.append(provider)
+    if sticker_ids:
+        where_clauses.append("sticker_id IN ({})".format(", ".join(["?"] * len(sticker_ids))))
+        params.extend(sticker_ids)
     where_sql = " AND ".join(where_clauses)
     limit_sql = " LIMIT ?" if limit is not None else ""
     if limit is not None:
@@ -1041,6 +1128,7 @@ def update_candidate_statuses(conn: sqlite3.Connection, statuses: dict[str, str]
 def list_approved_candidates_for_download(
     conn: sqlite3.Connection,
     provider: str | None = None,
+    sticker_ids: list[str] | None = None,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """List approved candidates joined with chapter_slug for output paths."""
@@ -1049,6 +1137,71 @@ def list_approved_candidates_for_download(
     if provider:
         where.append("c.provider = ?")
         params.append(provider)
+    if sticker_ids:
+        where.append("c.sticker_id IN ({})".format(", ".join(["?"] * len(sticker_ids))))
+        params.extend(sticker_ids)
+    limit_sql = " LIMIT ?" if limit is not None else ""
+    if limit is not None:
+        params.append(limit)
+    rows = conn.execute(
+        f"""
+        SELECT
+            c.image_id,
+            c.sticker_id,
+            c.query_id,
+            c.provider,
+            c.source_page,
+            c.image_url,
+            c.local_path,
+            c.width,
+            c.height,
+            c.relevance_score,
+            c.license_status,
+            c.status,
+            c.file_sha256,
+            c.file_size_bytes,
+            c.downloaded_at,
+            c.download_error,
+            c.preflight_status,
+            c.preflight_error,
+            c.preflight_content_type,
+            c.preflight_content_length,
+            c.preflight_checked_at,
+            c.preflight_retry_count,
+            c.preflight_last_retry_at,
+            c.retry_requested_at,
+            c.retry_requested_reason,
+            c.retry_forced_at,
+            c.retry_forced_reason,
+            c.last_retry_mode,
+            s.chapter_slug
+        FROM image_candidates c
+        LEFT JOIN stickers s ON s.sticker_id = c.sticker_id
+        WHERE {" AND ".join(where)}
+        ORDER BY c.image_id ASC
+        {limit_sql}
+        """,
+        params,
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def list_ready_candidates_for_download(
+    conn: sqlite3.Connection,
+    provider: str | None = None,
+    sticker_ids: list[str] | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List download-ready candidates without requiring manual approval."""
+    where = ["COALESCE(c.preflight_status, '') = 'passed'"]
+    where.append("c.status IN ('found', 'needs_review', 'approved')")
+    params: list[Any] = []
+    if provider:
+        where.append("c.provider = ?")
+        params.append(provider)
+    if sticker_ids:
+        where.append("c.sticker_id IN ({})".format(", ".join(["?"] * len(sticker_ids))))
+        params.extend(sticker_ids)
     limit_sql = " LIMIT ?" if limit is not None else ""
     if limit is not None:
         params.append(limit)
@@ -1133,11 +1286,113 @@ def update_candidate_download_result(
     conn.commit()
 
 
+def list_downloaded_candidates_for_crop(
+    conn: sqlite3.Connection,
+    provider: str | None = None,
+    sticker_ids: list[str] | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List downloaded candidates ready for crop/export."""
+    where = ["c.status = 'downloaded'"]
+    params: list[Any] = []
+    if provider:
+        where.append("c.provider = ?")
+        params.append(provider)
+    if sticker_ids:
+        where.append("c.sticker_id IN ({})".format(", ".join(["?"] * len(sticker_ids))))
+        params.extend(sticker_ids)
+    limit_sql = " LIMIT ?" if limit is not None else ""
+    if limit is not None:
+        params.append(limit)
+    rows = conn.execute(
+        f"""
+        SELECT
+            c.image_id,
+            c.sticker_id,
+            c.query_id,
+            c.provider,
+            c.source_page,
+            c.image_url,
+            c.local_path,
+            c.width,
+            c.height,
+            c.relevance_score,
+            c.license_status,
+            c.status,
+            c.file_sha256,
+            c.file_size_bytes,
+            c.downloaded_at,
+            c.download_error,
+            c.preflight_status,
+            c.preflight_error,
+            c.preflight_content_type,
+            c.preflight_content_length,
+            c.preflight_checked_at,
+            c.preflight_retry_count,
+            c.preflight_last_retry_at,
+            c.retry_requested_at,
+            c.retry_requested_reason,
+            c.retry_forced_at,
+            c.retry_forced_reason,
+            c.last_retry_mode,
+            s.chapter_slug
+        FROM image_candidates c
+        LEFT JOIN stickers s ON s.sticker_id = c.sticker_id
+        WHERE {" AND ".join(where)}
+        ORDER BY c.image_id ASC
+        {limit_sql}
+        """,
+        params,
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def update_candidate_export_result(
+    conn: sqlite3.Connection,
+    image_id: str,
+    *,
+    status: str | None = None,
+    exported_at: str | None = None,
+    cropped_path: str | None = None,
+) -> None:
+    """Update export fields for a candidate."""
+    now = datetime.now(timezone.utc).isoformat()
+    sets = ["updated_at = ?"]
+    params: list[Any] = [now]
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+    if exported_at is not None:
+        sets.append("exported_at = ?")
+        params.append(exported_at)
+    if cropped_path is not None:
+        sets.append("cropped_path = ?")
+        params.append(cropped_path)
+    params.append(image_id)
+    conn.execute(f"UPDATE image_candidates SET {', '.join(sets)} WHERE image_id = ?", params)
+    conn.commit()
+
+
+def update_sticker_status(conn: sqlite3.Connection, sticker_id: str, status: str) -> None:
+    """Update sticker status by id."""
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        UPDATE stickers
+        SET status = ?, updated_at = ?
+        WHERE sticker_id = ?
+        """,
+        (status, now, sticker_id),
+    )
+    conn.commit()
+
+
 def list_candidates_for_preflight(
     conn: sqlite3.Connection,
     statuses: tuple[str, ...] = ("needs_review", "approved"),
     provider: str | None = None,
     image_id: str | None = None,
+    sticker_ids: list[str] | None = None,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """List candidates eligible for preflight checks."""
@@ -1150,6 +1405,9 @@ def list_candidates_for_preflight(
     if image_id:
         where.append("image_id = ?")
         params.append(image_id)
+    if sticker_ids:
+        where.append("sticker_id IN ({})".format(", ".join(["?"] * len(sticker_ids))))
+        params.extend(sticker_ids)
     limit_sql = " LIMIT ?" if limit is not None else ""
     if limit is not None:
         params.append(limit)

@@ -66,9 +66,9 @@ search_execution:
   execute_providers:
     local_folder: true
     wikimedia: true
-    general_web: false
-    image_search: false
-    webpage: false
+    general_web: true
+    image_search: true
+    webpage: true
   max_routes_per_run: 20
   dry_run: false
 
@@ -77,12 +77,21 @@ source_providers:
     - manual_urls
     - local_folder
     - wikimedia
+    - image_search
+    - general_web
+    - webpage
   providers:
     manual_urls:
       enabled: true
     local_folder:
       enabled: true
     wikimedia:
+      enabled: true
+    image_search:
+      enabled: true
+    general_web:
+      enabled: true
+    webpage:
       enabled: true
     sanlorenzo_official:
       enabled: false
@@ -100,6 +109,9 @@ external_search:
   allow_internet: true
   allowed_real_providers:
     - wikimedia
+    - image_search
+    - general_web
+    - webpage
   user_agent: "album_sticker_factory/0.1 local research tool"
   timeout_seconds: 15
   max_results_per_route: 5

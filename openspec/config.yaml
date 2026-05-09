@@ -1,0 +1,55 @@
+﻿schema: spec-driven
+
+context: |
+  Proyecto: album_sticker_factory.
+  Herramienta local para planificar, rutear y ejecutar un pipeline controlado de stickers de San Lorenzo de Almagro.
+  Las fuentes principales del repo son SPEC.md, AGENTS.md y config.yaml.
+  Trabajar con enfoque SDD: explorar, proponer, aplicar, verificar y reportar.
+  Entorno principal: Windows PowerShell.
+  No tocar secretos, .env, credenciales ni datos locales sensibles.
+
+strict_tdd: false
+
+rules:
+  explore:
+    - Leer SPEC.md, AGENTS.md, config.yaml, contracts/ y tests/ antes de modificar.
+    - Identificar comandos disponibles antes de ejecutar cambios.
+  proposal:
+    - Proponer plan antes de cambios grandes.
+    - Explicar archivos probables a modificar.
+  design:
+    - Mantener agentes separados por responsabilidad.
+    - No acoplar scraping, evaluación, revisión, descarga y export.
+    - Respetar contratos existentes.
+  apply:
+    - Implementar cambios mínimos.
+    - Mantener compatibilidad con Windows PowerShell.
+    - No tocar .env, secrets ni credenciales.
+    - No modificar input/local_images.
+    - No cambiar reglas duras de SPEC.md sin pedido explícito.
+  verify:
+    - Ejecutar python -m pytest cuando sea posible.
+    - Ejecutar comandos funcionales específicos cuando correspondan.
+  report:
+    - Informar archivos modificados.
+    - Informar comandos ejecutados.
+    - Informar resultado de validación.
+    - Informar riesgos o pendientes.
+
+testing:
+  strict_tdd: false
+  runner:
+    command: "python -m pytest"
+    framework: "pytest"
+
+commands:
+  status: "python main.py status"
+  tests: "python -m pytest"
+  init: "python main.py init"
+  plan: "python main.py plan"
+  search: "python main.py search"
+  route_search: "python main.py route-search"
+  execute_local: "python main.py execute-routes --provider local_folder"
+  execute_wikimedia: "python main.py execute-routes --provider wikimedia --limit 20"
+  evaluate_wikimedia: "python main.py evaluate-candidates --provider wikimedia"
+  preflight_wikimedia: "python main.py preflight-candidates --provider wikimedia --limit 50"

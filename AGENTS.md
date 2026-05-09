@@ -113,3 +113,17 @@ Estado actual:
 - ClassifierAgent
 - ExportAgent
 - ReportAgent
+
+## Politica de uso de modelos (Codex)
+- Objetivo: elegir modelo por tipo de tarea para balancear costo, velocidad y calidad.
+- Regla base: usar el modelo principal de la sesion como default para casi todo.
+- Tareas rapidas/repetitivas: usar un modelo chico (por ejemplo `gpt-5.4-mini`) para busquedas, ediciones chicas y mantenimiento mecanico.
+- Tareas criticas/complejas: usar un modelo de mayor precision (por ejemplo `gpt-5.5`) para arquitectura, seguridad de flujo (`preflight/review/download`) y debugging dificil.
+- Tareas de codificacion mecanica grande: considerar un modelo code-first (por ejemplo `gpt-5.3-codex`) cuando el cambio este bien acotado.
+- Regla de escalado:
+  - empezar en default;
+  - si hay 2 intentos fallidos o riesgo alto de regresion, escalar a modelo de mayor precision;
+  - si la tarea es simple y masiva, bajar a modelo chico.
+- Nota pipeline local:
+  - `config.yaml` controla el comportamiento del pipeline, no el modelo del agente de terminal;
+  - con `llm.enabled: false`, los agentes Python del repo no consumen LLM interno.

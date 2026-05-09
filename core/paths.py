@@ -20,11 +20,14 @@ INPUT_DIR = ROOT_DIR / "input"
 LOCAL_IMAGES_DIR = INPUT_DIR / "local_images"
 
 OUTPUT_DIR = ROOT_DIR / "output"
+STICKERS_DIR = OUTPUT_DIR / "stickers"
+STICKERS_MANIFEST_CSV_PATH = OUTPUT_DIR / "stickers_manifest.csv"
 REVIEW_REPORT_HTML_PATH = ROOT_DIR / "reports" / "review_candidates.html"
 RUNTIME_DIRECTORIES = [
     ROOT_DIR / "metadata",
     LOCAL_IMAGES_DIR,
     OUTPUT_DIR / "raw",
+    STICKERS_DIR,
     OUTPUT_DIR / "candidates",
     OUTPUT_DIR / "processed",
     OUTPUT_DIR / "review",
