@@ -117,6 +117,53 @@ external_search:
   max_results_per_route: 5
   max_routes_per_run: 20
 
+search_engines:
+  enabled_order:
+    - google
+    - bing
+    - duckduckgo
+    - openverse
+  stop_after_first_engine_with_results: true
+  include_english_variants: true
+  max_query_variants_per_route: 5
+  timeout_seconds: 15
+  max_results_per_route: 5
+  user_agent: "Mozilla/5.0 album_sticker_factory/0.1 local research tool"
+  providers:
+    google:
+      enabled: true
+      kind: google_images
+      endpoint: "https://www.google.com/search"
+      params:
+        tbm: isch
+        safe: "off"
+        hl: es
+        gl: ar
+    bing:
+      enabled: true
+      kind: bing_images
+      endpoint: "https://www.bing.com/images/search"
+      params:
+        first: "1"
+        safeSearch: "off"
+        setlang: es-AR
+    duckduckgo:
+      enabled: true
+      kind: duckduckgo_images
+      endpoint: "https://duckduckgo.com/"
+      params:
+        iax: images
+        ia: images
+    openverse:
+      enabled: true
+      kind: openverse
+    custom_example:
+      enabled: false
+      kind: html_image_search
+      url_template: "https://example.com/search?q={query}"
+      image_url_patterns:
+        - '"imageUrl":"(?P<url>https?:\\/\\/[^"]+)"'
+
 wikimedia:
   max_query_variants_per_route: 5
   stop_after_first_success: true

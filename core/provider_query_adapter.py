@@ -40,7 +40,8 @@ def build_provider_queries(
     include_english_variants: bool = True,
 ) -> list[str]:
     """Build query variants for a specific provider."""
-    if provider != "wikimedia":
+    provider_name = str(provider or "").strip().lower()
+    if provider_name not in {"wikimedia", "image_search"}:
         return [_clean_variant(original_query)] if _clean_variant(original_query) else []
 
     original = _clean_variant(original_query)
@@ -68,8 +69,24 @@ def build_provider_queries(
     chapter_tokens = _tokenize(chapter)
     core_tokens = [t for t in target_tokens if t not in {"san", "lorenzo", "almagro", "club", "atletico"}]
     key_phrase = " ".join(core_tokens[:4]).strip()
+    full_text = _normalize(original + " " + target + " " + chapter)
 
-    if "libertadores" in _normalize(original + " " + target + " " + chapter):
+    if provider_name == "image_search":
+        if target:
+            add(f"{target} San Lorenzo foto")
+            add(f"{target} San Lorenzo imagen")
+        if key_phrase:
+            add(f"San Lorenzo {key_phrase} foto")
+        if chapter:
+            short_chapter = " ".join(chapter_tokens[:4])
+            add(f"San Lorenzo {short_chapter} imagen")
+        if years:
+            add(f"San Lorenzo {years[0]} foto")
+        add("San Lorenzo de Almagro fotos")
+        if include_english_variants:
+            add("San Lorenzo football club photos")
+
+    if "libertadores" in full_text:
         if years:
             add(f"San Lorenzo Libertadores {years[0]}")
             add(f"San Lorenzo {years[0]}")
@@ -77,7 +94,7 @@ def build_provider_queries(
         if include_english_variants:
             add("San Lorenzo football club")
 
-    if "gasometro" in _normalize(original + " " + target + " " + chapter):
+    if "gasometro" in full_text:
         add("Viejo Gasometro")
         add("San Lorenzo Gasometro")
         add("Estadio Gasometro")
@@ -85,7 +102,7 @@ def build_provider_queries(
         if include_english_variants:
             add("San Lorenzo de Almagro stadium")
 
-    if "matadores" in _normalize(original + " " + target + " " + chapter):
+    if "matadores" in full_text:
         add("San Lorenzo Los Matadores 1968")
         add("San Lorenzo Matadores")
         if include_english_variants:
@@ -116,4 +133,3 @@ def build_provider_queries(
             add(f"San Lorenzo {years[0]} football")
 
     return variants[:max_variants]
-
