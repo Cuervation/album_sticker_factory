@@ -136,15 +136,14 @@ class SearchRouterAgent:
 
         add_provider("general_web", "baseline")
         add_provider("image_search", "baseline")
+        add_provider("webpage", "baseline")
 
         q_lower = query.casefold()
         if any(keyword in q_lower for keyword in HISTORICAL_KEYWORDS):
             add_provider("wikimedia", "historical_query")
-            add_provider("webpage", "historical_query")
 
         if category in CATEGORY_ROUTING_HINT:
             add_provider("wikimedia", "category_rule")
-            add_provider("webpage", "category_rule")
 
         if enabled_providers.get("local_folder", {}).get("enabled", False):
             add_provider("local_folder", "local_source_enabled")

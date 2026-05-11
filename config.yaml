@@ -36,22 +36,22 @@ output:
 search_routing:
   enabled: true
   providers:
-    local_folder:
-      enabled: true
-      priority: 1
-    wikimedia:
-      enabled: true
-      priority: 2
-    general_web:
-      enabled: true
-      priority: 3
     image_search:
       enabled: true
-      priority: 4
+      priority: 1
+    general_web:
+      enabled: true
+      priority: 2
     webpage:
       enabled: true
+      priority: 3
+    local_folder:
+      enabled: true
+      priority: 4
+    wikimedia:
+      enabled: true
       priority: 5
-  max_routes_per_query: 4
+  max_routes_per_query: 5
 
 local_sources:
   local_images_dir: input/local_images
@@ -74,12 +74,12 @@ search_execution:
 
 source_providers:
   enabled_order:
-    - manual_urls
-    - local_folder
-    - wikimedia
     - image_search
     - general_web
     - webpage
+    - manual_urls
+    - local_folder
+    - wikimedia
   providers:
     manual_urls:
       enabled: true
@@ -94,24 +94,24 @@ source_providers:
     webpage:
       enabled: true
     sanlorenzo_official:
-      enabled: false
+      enabled: true
     conmebol:
-      enabled: false
+      enabled: true
     afa:
-      enabled: false
+      enabled: true
     news_manual:
-      enabled: false
+      enabled: true
     social_manual:
-      enabled: false
+      enabled: true
 
 external_search:
   enabled: true
   allow_internet: true
   allowed_real_providers:
-    - wikimedia
     - image_search
     - general_web
     - webpage
+    - wikimedia
   user_agent: "album_sticker_factory/0.1 local research tool"
   timeout_seconds: 15
   max_results_per_route: 5
@@ -139,6 +139,11 @@ candidate_preflight:
     - needs_review
     - approved
   allowed_providers:
+    - image_search
+    - general_web
+    - webpage
+    - local_folder
+    - manual_urls
     - wikimedia
   timeout_seconds: 15
   max_candidates_per_run: 50
@@ -182,6 +187,11 @@ download:
   timeout_seconds: 20
   max_file_size_mb: 8
   allowed_providers:
+    - image_search
+    - general_web
+    - webpage
+    - local_folder
+    - manual_urls
     - wikimedia
   allowed_extensions:
     - .jpg

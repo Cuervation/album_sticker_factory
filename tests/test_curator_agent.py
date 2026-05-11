@@ -130,3 +130,18 @@ def test_sqlite_stickers_count_after_plan_is_idempotent(tmp_path: Path) -> None:
     expected = {row["chapter_id"]: int(row["target_count"]) for row in rows}
     assert chapter_counts == expected
 
+
+def test_curator_can_generate_requested_total(tmp_path: Path) -> None:
+    chapters, seed, targets, sqlite_path = _setup_tmp_inputs(tmp_path)
+    agent = CuratorAgent(
+        chapters_csv_path=chapters,
+        seed_path=seed,
+        targets_csv_path=targets,
+        db_path=sqlite_path,
+    )
+    result = agent.run({"requested_total": 100})
+    rows = _read_rows(targets)
+
+    assert result["generated_count"] == 100
+    assert len(rows) == 100
+    assert sum(result["chapter_counts"].values()) == 100

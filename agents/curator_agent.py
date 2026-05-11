@@ -49,9 +49,17 @@ class CuratorAgent:
         self.db_path = Path(db_path or DB_PATH)
 
     def run(self, payload: dict | None = None) -> dict[str, Any]:
+        payload = payload or {}
         chapters = self._load_chapters()
         seed = self._load_seed()
-        rows = self._generate_targets(chapters, seed)
+        requested_total = payload.get("requested_total")
+        requested_per_chapter = payload.get("requested_per_chapter")
+        rows = self._generate_targets(
+            chapters,
+            seed,
+            requested_total=requested_total,
+            requested_per_chapter=requested_per_chapter,
+        )
         self._write_targets_csv(rows)
         self._persist_to_db(rows)
 
@@ -63,6 +71,10 @@ class CuratorAgent:
             "status": "ok",
             "message": "Sticker targets generated successfully.",
             "generated_count": len(rows),
+            "requested_total": int(requested_total) if requested_total is not None else len(rows),
+            "requested_per_chapter": (
+                int(requested_per_chapter) if requested_per_chapter is not None else None
+            ),
             "chapter_counts": chapter_counts,
             "csv_path": str(self.targets_csv_path),
         }
@@ -78,8 +90,8 @@ class CuratorAgent:
             raise ValueError(f"Expected 18 chapters, found {len(rows)}.")
 
         total = sum(int(row["target_count"]) for row in rows)
-        if total != 600:
-            raise ValueError(f"Expected target total 600, found {total}.")
+        if total <= 0:
+            raise ValueError("Expected positive target total from chapters.")
         return rows
 
     def _load_seed(self) -> dict[str, Any]:
@@ -92,18 +104,41 @@ class CuratorAgent:
         return data
 
     def _generate_targets(
-        self, chapters: list[dict[str, str]], seed_data: dict[str, Any]
+        self,
+        chapters: list[dict[str, str]],
+        seed_data: dict[str, Any],
+        *,
+        requested_total: int | None = None,
+        requested_per_chapter: int | None = None,
     ) -> list[dict[str, str]]:
         seed_chapters = seed_data.get("chapters", {})
         generated: list[dict[str, str]] = []
+        base_counts = [int(chapter["target_count"]) for chapter in chapters]
+        base_total = sum(base_counts)
+        if requested_per_chapter is not None:
+            per_chapter = int(requested_per_chapter)
+            if per_chapter <= 0:
+                raise ValueError("requested_per_chapter must be a positive integer.")
+            allocated_counts = [per_chapter for _ in chapters]
+            target_total = per_chapter * len(chapters)
+        else:
+            target_total = int(requested_total) if requested_total is not None else base_total
+            if target_total <= 0:
+                raise ValueError("requested_total must be a positive integer.")
 
-        for chapter in chapters:
+            if target_total == base_total:
+                allocated_counts = base_counts
+            else:
+                allocated_counts = self._allocate_target_counts(base_counts, target_total)
+
+        for chapter, target_count in zip(chapters, allocated_counts):
             chapter_id = chapter["chapter_id"]
             chapter_seed = seed_chapters.get(chapter_id)
             if not chapter_seed:
                 raise ValueError(f"Missing chapter seed for chapter_id={chapter_id}.")
 
-            target_count = int(chapter["target_count"])
+            if target_count <= 0:
+                continue
             chapter_rows = self._build_chapter_rows(chapter, chapter_seed, target_count)
             if len(chapter_rows) != target_count:
                 raise ValueError(
@@ -111,9 +146,28 @@ class CuratorAgent:
                 )
             generated.extend(chapter_rows)
 
-        if len(generated) != 600:
-            raise ValueError(f"Expected 600 generated targets, got {len(generated)}.")
+        if len(generated) != target_total:
+            raise ValueError(f"Expected {target_total} generated targets, got {len(generated)}.")
         return generated
+
+    @staticmethod
+    def _allocate_target_counts(base_counts: list[int], target_total: int) -> list[int]:
+        base_total = sum(base_counts)
+        if base_total <= 0:
+            raise ValueError("Base chapter target total must be positive.")
+
+        scaled = []
+        remainders = []
+        for idx, base_count in enumerate(base_counts):
+            exact = (base_count / base_total) * target_total
+            whole = int(exact)
+            scaled.append(whole)
+            remainders.append((exact - whole, idx))
+
+        diff = target_total - sum(scaled)
+        for _, idx in sorted(remainders, key=lambda item: (-item[0], item[1]))[:diff]:
+            scaled[idx] += 1
+        return scaled
 
     def _build_chapter_rows(
         self, chapter: dict[str, str], chapter_seed: dict[str, Any], target_count: int

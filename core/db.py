@@ -427,6 +427,30 @@ def get_query_counts_by_sticker(conn: sqlite3.Connection) -> dict[str, int]:
     return {str(row["sticker_id"]): int(row["c"]) for row in rows}
 
 
+def get_sticker_yield_counts(conn: sqlite3.Connection) -> dict[str, dict[str, int]]:
+    """Count historical download yield grouped by sticker."""
+    rows = conn.execute(
+        """
+        SELECT
+            sticker_id,
+            COUNT(*) AS image_count,
+            COALESCE(SUM(CASE WHEN downloaded_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS downloaded_count,
+            COALESCE(SUM(CASE WHEN COALESCE(preflight_status, '') = 'passed' THEN 1 ELSE 0 END), 0) AS preflight_passed_count
+        FROM image_candidates
+        GROUP BY sticker_id
+        ORDER BY sticker_id
+        """
+    ).fetchall()
+    return {
+        str(row["sticker_id"]): {
+            "image_count": int(row["image_count"]),
+            "downloaded_count": int(row["downloaded_count"]),
+            "preflight_passed_count": int(row["preflight_passed_count"]),
+        }
+        for row in rows
+    }
+
+
 def list_search_queries_for_routing(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Return query rows joined with sticker context for routing rules."""
     rows = conn.execute(

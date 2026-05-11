@@ -181,7 +181,7 @@ def cmd_plan(_: argparse.Namespace) -> int:
     print("Distribution by chapter:")
     for chapter_id, count in sorted(result["chapter_counts"].items()):
         print(f"  - {chapter_id}: {count}")
-    print("Total expected: 600")
+    print(f"Total expected: {result['generated_count']}")
     print("Warning: this step only generates search targets.")
     print("No image search or image download is executed in Prompt 2.")
     return 0
@@ -403,6 +403,7 @@ def cmd_build_sticker_candidates(args: argparse.Namespace) -> int:
     if requested_count is not None and requested_count <= 0:
         print("Build-sticker-candidates failed: limit must be positive.")
         return 1
+    curator = CuratorAgent()
     query_builder = QueryBuilderAgent()
     router = SearchRouterAgent()
     executor = SearchExecutorAgent()
@@ -414,53 +415,228 @@ def cmd_build_sticker_candidates(args: argparse.Namespace) -> int:
     try:
         sticker_rows = [row for row in db.list_stickers(conn) if str(row.get("status")) != "exported"]
         if not sticker_rows:
+            curator.run({"requested_per_chapter": int(requested_count) if requested_count is not None else 50})
+            sticker_rows = [row for row in db.list_stickers(conn) if str(row.get("status")) != "exported"]
+        if not sticker_rows:
             print("Build-sticker-candidates failed: no stickers available.")
             return 1
 
-        completed = 0
+        priority_order = {"alta": 3, "media": 2, "baja": 1}
+
+        def _priority_score(value: object) -> int:
+            return priority_order.get(str(value or "").strip().lower(), 0)
+
+        downloaded_total = 0
+        processed_stickers = 0
         execute_total = 0
         evaluate_total = 0
         preflight_total = 0
         download_total = 0
         crop_total = 0
-        for sticker in sticker_rows:
-            if requested_count is not None and completed >= requested_count:
-                break
-            sticker_ids = [sticker["sticker_id"]]
-            query_builder.run({"command": "search", "sticker_ids": sticker_ids})
-            router.run({"command": "route-search", "sticker_ids": sticker_ids})
-            execute_result = executor.run(provider=provider, limit=50, sticker_ids=sticker_ids)
-            evaluate_result = evaluator.run(provider=None, limit=50, sticker_ids=sticker_ids)
-            preflight_result = preflight.run(provider=None, limit=50, sticker_ids=sticker_ids)
-            download_result = downloader.run_download(
-                provider=None,
-                limit=50,
-                require_approved=False,
-                sticker_ids=sticker_ids,
+        yield_counts = db.get_sticker_yield_counts(conn)
+        chapter_groups: dict[str, list[dict[str, object]]] = {}
+        for idx, sticker in enumerate(sticker_rows):
+            chapter_id = str(sticker.get("chapter_id") or "")
+            chapter_groups.setdefault(chapter_id, []).append(
+                {
+                    "row": sticker,
+                    "order": idx,
+                    "score": (
+                        int(yield_counts.get(str(sticker.get("sticker_id") or ""), {}).get("downloaded_count", 0)) * 1000
+                        + int(yield_counts.get(str(sticker.get("sticker_id") or ""), {}).get("preflight_passed_count", 0)) * 10
+                        + int(yield_counts.get(str(sticker.get("sticker_id") or ""), {}).get("image_count", 0))
+                    ),
+                    "attempts": 0,
+                    "priority_score": _priority_score(sticker.get("priority")),
+                    "next_pass": 1,
+                    "zero_streak": 0,
+                }
             )
-            crop_result = cropper.run(provider=None, limit=50, sticker_ids=sticker_ids)
-            execute_total += int(execute_result.get("candidates_created", 0))
-            evaluate_total += int(evaluate_result.get("kept_found", 0))
-            preflight_total += int(preflight_result.get("checked", 0))
-            download_total += int(download_result.get("downloaded", 0))
-            crop_total += int(crop_result.get("cropped", 0))
-            completed += int(crop_result.get("cropped", 0))
+
+        chapter_limit = int(requested_count) if requested_count is not None else 50
+        if chapter_limit <= 0:
+            print("Build-sticker-candidates failed: limit must be positive.")
+            return 1
+
+        if any(len([row for row in sticker_rows if str(row.get("chapter_id") or "") == chapter_id]) < chapter_limit for chapter_id in {str(row.get("chapter_id") or "") for row in sticker_rows}):
+            curator.run({"requested_per_chapter": chapter_limit})
+            sticker_rows = [row for row in db.list_stickers(conn) if str(row.get("status")) != "exported"]
+            if not sticker_rows:
+                print("Build-sticker-candidates failed: no stickers available.")
+                return 1
+
+        chapter_summaries: list[dict[str, object]] = []
+        for chapter_id in sorted(chapter_groups.keys(), key=lambda value: int(str(value or "0"))):
+            chapter_entries = chapter_groups.get(chapter_id, [])
+            if not chapter_entries:
+                continue
+            chapter_title = str(chapter_entries[0]["row"].get("chapter_title") or chapter_id)
+            chapter_slug = str(chapter_entries[0]["row"].get("chapter_slug") or "")
+            chapter_downloaded = 0
+            chapter_processed = 0
+            chapter_passes = 0
+            idle_passes = 0
+            pass_budget = max(8, min(len(chapter_entries), chapter_limit))
+
+            print(
+                f"[build-sticker-candidates] chapter={chapter_id} title={chapter_title} target={chapter_limit}",
+                flush=True,
+            )
+            while chapter_downloaded < chapter_limit:
+                pass_downloaded_before = chapter_downloaded
+                chapter_passes += 1
+                eligible_entries = [entry for entry in chapter_entries if int(entry["next_pass"]) <= chapter_passes]
+                hot_entries = sorted(
+                    (entry for entry in eligible_entries if entry["score"] > 0),
+                    key=lambda entry: (
+                        -int(entry["score"]),
+                        -int(entry["priority_score"]),
+                        int(entry["attempts"]),
+                        int(entry["order"]),
+                    ),
+                )
+                cold_entries = [entry for entry in eligible_entries if entry["score"] <= 0]
+                cold_entries.sort(
+                    key=lambda entry: (
+                        -int(entry["priority_score"]),
+                        int(entry["attempts"]),
+                        int(entry["order"]),
+                    )
+                )
+                active_entries = hot_entries[:pass_budget]
+                if len(active_entries) < pass_budget and cold_entries:
+                    cold_window_start = ((chapter_passes - 1) * max(1, pass_budget - len(active_entries))) % len(cold_entries)
+                    cold_budget = pass_budget - len(active_entries)
+                    cold_slice = cold_entries[cold_window_start : cold_window_start + cold_budget]
+                    if len(cold_slice) < cold_budget:
+                        cold_slice.extend(cold_entries[: cold_budget - len(cold_slice)])
+                    active_entries.extend(cold_slice)
+                if not active_entries:
+                    break
+
+                for entry in active_entries:
+                    if chapter_downloaded >= chapter_limit:
+                        break
+                    sticker = entry["row"]
+                    sticker_id = str(sticker.get("sticker_id") or "unknown")
+                    sticker_ids = [sticker_id]
+                    chapter_processed += 1
+                    processed_stickers += 1
+                    print(
+                        f"[build-sticker-candidates] chapter={chapter_id} pass={chapter_passes} sticker={sticker_id} "
+                        f"step=search processed={processed_stickers} downloaded={downloaded_total}",
+                        flush=True,
+                    )
+                    query_builder.run({"command": "search", "sticker_ids": sticker_ids, "chapter_mode": True})
+                    router.run({"command": "route-search", "sticker_ids": sticker_ids})
+                    print(
+                        f"[build-sticker-candidates] chapter={chapter_id} pass={chapter_passes} sticker={sticker_id} step=execute",
+                        flush=True,
+                    )
+                    execute_result = executor.run(provider=provider, limit=50, sticker_ids=sticker_ids)
+                    print(
+                        f"[build-sticker-candidates] chapter={chapter_id} pass={chapter_passes} sticker={sticker_id} step=evaluate",
+                        flush=True,
+                    )
+                    evaluate_result = evaluator.run(provider=None, limit=50, sticker_ids=sticker_ids)
+                    print(
+                        f"[build-sticker-candidates] chapter={chapter_id} pass={chapter_passes} sticker={sticker_id} step=preflight",
+                        flush=True,
+                    )
+                    preflight_result = preflight.run(provider=None, limit=50, sticker_ids=sticker_ids)
+                    print(
+                        f"[build-sticker-candidates] chapter={chapter_id} pass={chapter_passes} sticker={sticker_id} step=download",
+                        flush=True,
+                    )
+                    download_result = downloader.run_download(
+                        provider=None,
+                        limit=chapter_limit,
+                        require_approved=False,
+                        sticker_ids=sticker_ids,
+                    )
+                    print(
+                        f"[build-sticker-candidates] chapter={chapter_id} pass={chapter_passes} sticker={sticker_id} step=crop",
+                        flush=True,
+                    )
+                    crop_result = cropper.run(provider=None, limit=chapter_limit, sticker_ids=sticker_ids)
+                    execute_total += int(execute_result.get("candidates_created", 0))
+                    evaluate_total += int(evaluate_result.get("kept_found", 0))
+                    preflight_total += int(preflight_result.get("checked", 0))
+                    download_total += int(download_result.get("downloaded", 0))
+                    crop_total += int(crop_result.get("cropped", 0))
+                    downloaded_total += int(download_result.get("downloaded", 0))
+                    chapter_downloaded += int(download_result.get("downloaded", 0))
+                    entry["attempts"] += 1
+                    gain = (
+                        int(download_result.get("downloaded", 0)) * 100
+                        + int(preflight_result.get("passed", 0)) * 10
+                        + int(execute_result.get("candidates_created", 0))
+                        + int(evaluate_result.get("kept_found", 0))
+                    )
+                    if gain > 0:
+                        entry["score"] += gain
+                        entry["zero_streak"] = 0
+                        entry["next_pass"] = chapter_passes + 1
+                    else:
+                        entry["zero_streak"] = int(entry["zero_streak"]) + 1
+                        backoff = min(4, 1 << min(int(entry["zero_streak"]), 2))
+                        entry["next_pass"] = chapter_passes + backoff
+                    print(
+                        f"[build-sticker-candidates] chapter={chapter_id} pass={chapter_passes} sticker={sticker_id} "
+                        f"done chapter_downloaded={chapter_downloaded} batch={download_result.get('downloaded', 0)}",
+                        flush=True,
+                    )
+                if chapter_downloaded >= chapter_limit:
+                    break
+                if chapter_downloaded == pass_downloaded_before:
+                    idle_passes += 1
+                else:
+                    idle_passes = 0
+                if idle_passes >= 2:
+                    print(
+                        "[build-sticker-candidates] warning=no_download_progress_after_full_passes "
+                        f"chapter={chapter_id} title={chapter_title} passes_completed={chapter_passes} "
+                        f"downloaded_total={chapter_downloaded}",
+                        flush=True,
+                    )
+                    break
+            chapter_summaries.append(
+                {
+                    "chapter_id": chapter_id,
+                    "chapter_title": chapter_title,
+                    "chapter_slug": chapter_slug,
+                    "selected": len(chapter_entries),
+                    "processed": chapter_processed,
+                    "passes": chapter_passes,
+                    "downloaded": chapter_downloaded,
+                }
+            )
     except Exception as exc:  # pragma: no cover - defensive guard
-        print(f"Build-sticker-candidates failed: {exc}")
+        print(f"Build-sticker-candidates failed: {exc}", flush=True)
         return 1
     finally:
         conn.close()
-    print("Build sticker candidates complete.")
-    print(f"- Stickers selected: {len(sticker_rows)}")
-    print(f"- Stickers completed: {completed}")
-    print(f"- Requested count: {requested_count if requested_count is not None else 'all'}")
-    print(f"- Execute routes candidates: {execute_total}")
-    print(f"- Evaluate kept_found: {evaluate_total}")
-    print(f"- Preflight checked: {preflight_total}")
-    print(f"- Downloaded: {download_total}")
-    print(f"- Cropped: {crop_total}")
-    print(f"- Manifest: {STICKERS_MANIFEST_CSV_PATH}")
-    print("Warning: flujo automatico termina en carpetas de stickers; review manual queda externa.")
+    print("Build sticker candidates complete.", flush=True)
+    print(f"- Stickers selected: {len(sticker_rows)}", flush=True)
+    print(f"- Stickers processed: {processed_stickers}", flush=True)
+    print(f"- Images downloaded: {downloaded_total}", flush=True)
+    print(f"- Requested per chapter: {chapter_limit}", flush=True)
+    print(f"- Passes completed: {sum(int(summary['passes']) for summary in chapter_summaries)}", flush=True)
+    print(f"- Execute routes candidates: {execute_total}", flush=True)
+    print(f"- Evaluate kept_found: {evaluate_total}", flush=True)
+    print(f"- Preflight checked: {preflight_total}", flush=True)
+    print(f"- Downloaded: {download_total}", flush=True)
+    print(f"- Cropped: {crop_total}", flush=True)
+    print(f"- Manifest: {STICKERS_MANIFEST_CSV_PATH}", flush=True)
+    print("- Chapter summaries:", flush=True)
+    for summary in chapter_summaries:
+        print(
+            f"  - {summary['chapter_id']} | {summary['chapter_title']} | "
+            f"selected={summary['selected']} processed={summary['processed']} "
+            f"passes={summary['passes']} downloaded={summary['downloaded']}",
+            flush=True,
+        )
+    print("Warning: flujo automatico termina en carpetas de stickers; review manual queda externa.", flush=True)
     return 0
 
 

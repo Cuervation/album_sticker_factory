@@ -65,7 +65,7 @@ def test_crop_ready_generates_square_sticker_and_manifest(tmp_path: Path, monkey
     )
     result = agent.run(limit=5)
     assert result["cropped"] == 1
-    sticker_path = tmp_path / "stickers" / "SL-13-001" / "IMG-CROP-1.webp"
+    sticker_path = tmp_path / "stickers" / "SL-13-001.webp"
     assert sticker_path.exists()
     with Image.open(sticker_path) as img:
         assert img.size == (256, 256)

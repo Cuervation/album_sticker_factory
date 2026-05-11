@@ -141,9 +141,8 @@ class CropAgent:
             cropped = image.crop((left, top, left + size, top + size))
             resized = cropped.resize((final_size, final_size), Image.Resampling.LANCZOS)
 
-            sticker_dir = self.output_dir / sticker_id
-            sticker_dir.mkdir(parents=True, exist_ok=True)
-            sticker_path = sticker_dir / f"{image_id}.webp"
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            sticker_path = self.output_dir / f"{sticker_id}.webp"
             resized.save(sticker_path, "WEBP")
 
         return {

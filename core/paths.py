@@ -27,7 +27,7 @@ RUNTIME_DIRECTORIES = [
     ROOT_DIR / "metadata",
     LOCAL_IMAGES_DIR,
     OUTPUT_DIR / "raw",
-    STICKERS_DIR,
+    OUTPUT_DIR / "stickers",
     OUTPUT_DIR / "candidates",
     OUTPUT_DIR / "processed",
     OUTPUT_DIR / "review",

@@ -61,6 +61,7 @@ class DownloadAgent:
         allowed_extensions = {str(e).lower() for e in cfg.get("allowed_extensions", [".jpg", ".jpeg", ".png", ".webp"])}
         allowed_mime_prefixes = tuple(str(p) for p in cfg.get("allowed_mime_prefixes", ["image/"]))
         user_agent = str(cfg.get("user_agent", "album_sticker_factory/0.1 local download tool"))
+        provider_order = self._provider_order_for_download(allowed_providers)
 
         provider = None if provider in {None, "", "auto"} else provider
         effective_limit = limit if limit is not None else max_per_run
@@ -70,22 +71,23 @@ class DownloadAgent:
         conn = db.get_connection(self.db_path)
         try:
             db.create_tables(conn)
+            query_limit = None if limit is not None else max_per_run
             if require_approved:
                 candidates = db.list_approved_candidates_for_download(
                     conn=conn,
                     provider=provider,
                     sticker_ids=sticker_ids,
-                    limit=effective_limit,
+                    limit=query_limit,
                 )
             else:
                 candidates = db.list_ready_candidates_for_download(
                     conn=conn,
                     provider=provider,
                     sticker_ids=sticker_ids,
-                    limit=effective_limit,
+                    limit=query_limit,
                 )
             if sticker_ids:
-                candidates = self._one_candidate_per_sticker(candidates)
+                candidates = self._group_candidates_for_sticker_rotation(candidates, provider_order)
             if not candidates:
                 exported_rows = db.list_image_candidates(conn)
                 self._export_candidates_csv(exported_rows)
@@ -105,49 +107,70 @@ class DownloadAgent:
                         if require_approved
                         else "No hay candidatos listos para descargar."
                     ),
-                }
+            }
 
             counts = {"attempted": 0, "downloaded": 0, "skipped": 0, "failed": 0}
+            by_sticker: dict[str, list[dict[str, Any]]] = {}
             for candidate in candidates:
-                counts["attempted"] += 1
-                result = self._download_one(
-                    candidate=candidate,
-                    output_dir=output_dir,
-                    timeout_seconds=timeout_seconds,
-                    max_file_size_bytes=max_file_size_bytes,
-                    allowed_providers=allowed_providers,
-                    allowed_extensions=allowed_extensions,
-                    allowed_mime_prefixes=allowed_mime_prefixes,
-                    user_agent=user_agent,
-                    require_approved=require_approved,
+                sticker_id = str(candidate.get("sticker_id") or "")
+                if not sticker_id:
+                    continue
+                by_sticker.setdefault(sticker_id, []).append(candidate)
+
+            sticker_ids_order = list(by_sticker.keys())
+            for sticker_index, sticker_id in enumerate(sticker_ids_order):
+                if counts["downloaded"] >= effective_limit:
+                    break
+                sticker_candidates = by_sticker[sticker_id]
+                ordered_candidates = self._rotate_candidates_for_sticker(
+                    sticker_candidates,
+                    provider_order=provider_order,
+                    sticker_index=sticker_index,
                 )
-                if result["action"] == "downloaded":
-                    counts["downloaded"] += 1
-                    db.update_candidate_download_result(
-                        conn,
-                        candidate["image_id"],
-                        local_path=result["local_path"],
-                        file_sha256=result["file_sha256"],
-                        file_size_bytes=result["file_size_bytes"],
-                        downloaded_at=result["downloaded_at"],
-                        download_error="",
-                        status="downloaded",
+                for candidate in ordered_candidates:
+                    if counts["downloaded"] >= effective_limit:
+                        break
+                    counts["attempted"] += 1
+                    result = self._download_one(
+                        candidate=candidate,
+                        output_dir=output_dir,
+                        timeout_seconds=timeout_seconds,
+                        max_file_size_bytes=max_file_size_bytes,
+                        allowed_providers=allowed_providers,
+                        allowed_extensions=allowed_extensions,
+                        allowed_mime_prefixes=allowed_mime_prefixes,
+                        user_agent=user_agent,
+                        require_approved=require_approved,
                     )
-                elif result["action"] == "skipped":
-                    counts["skipped"] += 1
-                    if result.get("download_error"):
+                    if result["action"] == "downloaded":
+                        counts["downloaded"] += 1
                         db.update_candidate_download_result(
                             conn,
                             candidate["image_id"],
-                            download_error=result["download_error"],
+                            local_path=result["local_path"],
+                            file_sha256=result["file_sha256"],
+                            file_size_bytes=result["file_size_bytes"],
+                            downloaded_at=result["downloaded_at"],
+                            download_error="",
+                            status="downloaded",
                         )
-                else:
+                        break
+                    if result["action"] == "skipped":
+                        counts["skipped"] += 1
+                        if result.get("download_error"):
+                            db.update_candidate_download_result(
+                                conn,
+                                candidate["image_id"],
+                                download_error=result["download_error"],
+                            )
+                        continue
                     counts["failed"] += 1
                     db.update_candidate_download_result(
                         conn,
                         candidate["image_id"],
                         download_error=result.get("download_error", "provider_exception:unknown"),
                     )
+                # move to next sticker even if none downloaded; another sticker may have usable candidates.
 
             exported_rows = db.list_image_candidates(conn)
         finally:
@@ -166,20 +189,67 @@ class DownloadAgent:
         }
 
     @staticmethod
-    def _one_candidate_per_sticker(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        best: dict[str, dict[str, Any]] = {}
+    def _provider_order_for_download(allowed_providers: set[str]) -> list[str]:
+        cfg = load_config()
+        source_cfg = cfg.get("source_providers", {})
+        configured_order = [str(name) for name in source_cfg.get("enabled_order", [])]
+        if configured_order:
+            order = [name for name in configured_order if name in allowed_providers]
+            if order:
+                return order
+        return []
+
+    @staticmethod
+    def _group_candidates_for_sticker_rotation(
+        candidates: list[dict[str, Any]],
+        provider_order: list[str],
+    ) -> list[dict[str, Any]]:
+        if not candidates:
+            return []
+        by_sticker: dict[str, list[dict[str, Any]]] = {}
         for candidate in candidates:
             sticker_id = str(candidate.get("sticker_id") or "")
             if not sticker_id:
                 continue
-            current = best.get(sticker_id)
-            score = float(candidate.get("relevance_score") or 0.0)
-            current_score = float(current.get("relevance_score") or 0.0) if current else -1.0
-            if current is None or score > current_score or (
-                score == current_score and str(candidate.get("image_id") or "") < str(current.get("image_id") or "")
-            ):
-                best[sticker_id] = candidate
-        return list(best.values())
+            by_sticker.setdefault(sticker_id, []).append(candidate)
+        ordered: list[dict[str, Any]] = []
+        for sticker_index, sticker_id in enumerate(by_sticker.keys()):
+            ordered.extend(
+                DownloadAgent._rotate_candidates_for_sticker(
+                    by_sticker[sticker_id],
+                    provider_order=provider_order,
+                    sticker_index=sticker_index,
+                )
+            )
+        return ordered
+
+    @staticmethod
+    def _rotate_candidates_for_sticker(
+        candidates: list[dict[str, Any]],
+        *,
+        provider_order: list[str],
+        sticker_index: int,
+    ) -> list[dict[str, Any]]:
+        if not candidates:
+            return []
+        provider_rank = {provider: idx for idx, provider in enumerate(provider_order)}
+        fallback_rank = len(provider_order)
+        start_offset = sticker_index % len(provider_order) if provider_order else 0
+        rotated_rank: dict[str, int] = {}
+        if provider_order:
+            for idx, provider in enumerate(provider_order):
+                rotated_rank[provider] = (idx - start_offset) % len(provider_order)
+
+        def sort_key(candidate: dict[str, Any]) -> tuple[int, int, float, str]:
+            provider = str(candidate.get("provider") or "")
+            rank = rotated_rank.get(provider, provider_rank.get(provider, fallback_rank))
+            status = str(candidate.get("status") or "")
+            status_rank = 0 if status == "approved" else 1 if status == "needs_review" else 2
+            relevance = -float(candidate.get("relevance_score") or 0.0)
+            image_id = str(candidate.get("image_id") or "")
+            return (rank, status_rank, relevance, image_id)
+
+        return sorted(candidates, key=sort_key)
 
     def _download_one(
         self,
@@ -218,10 +288,9 @@ class DownloadAgent:
         if not image_url:
             return {"action": "failed", "download_error": "missing_image_url"}
 
-        chapter_slug = str(candidate.get("chapter_slug") or "unknown-chapter")
-        sticker_id = str(candidate.get("sticker_id") or "unknown-sticker")
-        candidate_dir = output_dir / chapter_slug / sticker_id
-        candidate_dir.mkdir(parents=True, exist_ok=True)
+        chapter_key = str(candidate.get("chapter_slug") or candidate.get("chapter_id") or "").strip()
+        chapter_dir = output_dir / chapter_key if chapter_key else output_dir
+        chapter_dir.mkdir(parents=True, exist_ok=True)
 
         existing_local = str(candidate.get("local_path") or "").strip()
         if existing_local:
@@ -248,7 +317,8 @@ class DownloadAgent:
                     content_type=content_type,
                     allowed_extensions=allowed_extensions,
                 )
-                file_path = candidate_dir / f"{image_id}{ext}"
+                file_stem = image_id or str(candidate.get("sticker_id") or "image")
+                file_path = chapter_dir / f"{file_stem}{ext}"
                 buffer = bytearray()
                 while True:
                     chunk = resp.read(64 * 1024)

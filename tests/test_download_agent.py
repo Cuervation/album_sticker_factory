@@ -83,6 +83,18 @@ def _cfg(tmp_path: Path) -> dict:
     }
 
 
+def _cfg_multi(tmp_path: Path) -> dict:
+    cfg = _cfg(tmp_path)
+    cfg["download"]["allowed_providers"] = ["wikimedia", "general_web"]
+    cfg.setdefault("source_providers", {})
+    cfg["source_providers"]["enabled_order"] = ["wikimedia", "general_web"]
+    cfg["source_providers"]["providers"] = {
+        "wikimedia": {"enabled": True},
+        "general_web": {"enabled": True},
+    }
+    return cfg
+
+
 def test_download_agent_no_approved_returns_ok(tmp_path: Path, monkeypatch) -> None:
     db_path = tmp_path / "db.sqlite"
     conn = db.get_connection(db_path)
@@ -127,6 +139,7 @@ def test_download_agent_downloads_approved_and_updates_fields(tmp_path: Path, mo
         conn.close()
     assert row["status"] == "downloaded"
     assert str(row["local_path"])
+    assert "/raw/libertadores-2014/" in str(row["local_path"]).replace("\\", "/")
     assert row["file_sha256"]
     assert int(row["file_size_bytes"]) == 6
     assert row["downloaded_at"]
@@ -178,6 +191,39 @@ def test_download_agent_rejects_provider_and_content_type(tmp_path: Path, monkey
     assert rows[0]["status"] == "approved"
     assert rows[0]["download_error"] in ("provider_not_allowed", "", None)
     assert "invalid_content_type" in str(rows[1]["download_error"])
+
+
+def test_download_agent_limit_counts_downloads_not_attempts(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed_sticker(conn)
+        _seed_candidate(conn, "IMG-8", "approved", provider="general_web", image_url="https://x/skip.jpg")
+        _seed_candidate(conn, "IMG-9", "approved", provider="wikimedia", image_url="https://x/keep.jpg")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='passed' WHERE image_id IN ('IMG-8','IMG-9')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr("agents.download_agent.load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr("agents.download_agent.urlopen", lambda req, timeout=0: _FakeResponse(b"abc123", "image/jpeg"))
+    agent = DownloadAgent(db_path=db_path, output_csv_path=tmp_path / "image_candidates.csv")
+    result = agent.run_download(provider=None, limit=1, require_approved=False)
+    assert result["downloaded"] == 1
+    assert result["download_attempted"] >= 2
+
+    conn = db.get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT image_id, status FROM image_candidates WHERE image_id IN ('IMG-8','IMG-9') ORDER BY image_id"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert rows[0]["status"] == "approved"
+    assert rows[1]["status"] == "downloaded"
 
 
 def test_download_agent_http_and_url_errors(tmp_path: Path, monkeypatch) -> None:
@@ -248,6 +294,48 @@ def test_download_agent_skips_preflight_retryable(tmp_path: Path, monkeypatch) -
     result = DownloadAgent(db_path=db_path, output_csv_path=tmp_path / "image_candidates.csv").run(limit=5)
     assert result["downloaded"] == 0
     assert result["skipped"] == 1
+
+
+def test_download_agent_falls_back_to_next_provider_after_http_429(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "db.sqlite"
+    conn = db.get_connection(db_path)
+    try:
+        db.create_tables(conn)
+        _seed_sticker(conn)
+        _seed_candidate(conn, "IMG-11", "approved", provider="wikimedia", image_url="https://x/first.jpg")
+        _seed_candidate(conn, "IMG-12", "approved", provider="general_web", image_url="https://x/second.jpg")
+        conn.execute(
+            "UPDATE image_candidates SET preflight_status='passed' WHERE image_id IN ('IMG-11','IMG-12')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    def _urlopen(req, timeout=0):  # noqa: ANN001
+        if "first.jpg" in req.full_url:
+            raise HTTPError(req.full_url, 429, "rate limited", hdrs=None, fp=None)
+        return _FakeResponse(b"abc123", "image/jpeg")
+
+    monkeypatch.setattr("agents.download_agent.load_config", lambda: _cfg_multi(tmp_path))
+    monkeypatch.setattr("agents.download_agent.urlopen", _urlopen)
+    result = DownloadAgent(db_path=db_path, output_csv_path=tmp_path / "image_candidates.csv").run_download(
+        provider=None,
+        limit=5,
+        require_approved=False,
+    )
+    assert result["download_attempted"] >= 2
+    assert result["downloaded"] == 1
+
+    conn = db.get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT image_id, status, download_error FROM image_candidates WHERE image_id IN ('IMG-11','IMG-12') ORDER BY image_id"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert rows[0]["status"] == "approved"
+    assert rows[0]["download_error"] == "http_error:429"
+    assert rows[1]["status"] == "downloaded"
 
 
 def test_download_agent_skips_preflight_pdf_content_type(tmp_path: Path, monkeypatch) -> None:

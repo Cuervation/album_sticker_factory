@@ -120,7 +120,7 @@ class QueryBuilderAgent:
         return unique
 
     def build_queries_for_sticker(
-        self, sticker: dict[str, Any], max_queries: int
+        self, sticker: dict[str, Any], max_queries: int, *, chapter_mode: bool = False
     ) -> list[dict[str, str]]:
         """Build query rows for a single sticker."""
         sticker_id = str(sticker["sticker_id"])
@@ -131,20 +131,33 @@ class QueryBuilderAgent:
         category = str(sticker["category"])
         search_hint = str(sticker.get("search_hint", "")).strip()
 
-        year_tokens = re.findall(r"(?:19|20)\d{2}(?:/\d{4})?", f"{target_name} {chapter_title} {search_hint}")
+        chapter_focus = f"{chapter_title} {search_hint}" if chapter_mode else f"{target_name} {chapter_title} {search_hint}"
+        year_tokens = re.findall(r"(?:19|20)\d{2}(?:/\d{4})?", chapter_focus)
         year_hint = year_tokens[0] if year_tokens else ""
         terms = CATEGORY_TERMS.get(category, ["foto", "imagen", "archivo historico", "San Lorenzo"])
 
-        raw_candidates = [
-            search_hint,
-            f"San Lorenzo de Almagro {target_name} {chapter_title} foto",
-            f"San Lorenzo {target_name} {terms[0]} {terms[1]}",
-            f"San Lorenzo {chapter_title} {target_name} {terms[2]}",
-            f"San Lorenzo {target_name} {terms[3]} imagen",
-            f"San Lorenzo de Almagro {target_name} {year_hint} archivo historico",
-            f"San Lorenzo {chapter_title} {category} {target_name} foto historica",
-            f"San Lorenzo {target_name} {chapter_title} plantel partido festejo",
-        ]
+        if chapter_mode:
+            raw_candidates = [
+                f"San Lorenzo {chapter_title} foto",
+                f"San Lorenzo de Almagro {chapter_title} archivo historico",
+                f"San Lorenzo {chapter_title} imagen",
+                f"San Lorenzo {chapter_title} {terms[0]}",
+                f"San Lorenzo {chapter_title} {terms[1]}",
+                f"San Lorenzo {chapter_title} {year_hint} archivo historico",
+                f"San Lorenzo {chapter_title} {category} foto historica",
+                f"San Lorenzo {chapter_title} {target_name}",
+            ]
+        else:
+            raw_candidates = [
+                search_hint,
+                f"San Lorenzo de Almagro {target_name} {chapter_title} foto",
+                f"San Lorenzo {target_name} {terms[0]} {terms[1]}",
+                f"San Lorenzo {chapter_title} {target_name} {terms[2]}",
+                f"San Lorenzo {target_name} {terms[3]} imagen",
+                f"San Lorenzo de Almagro {target_name} {year_hint} archivo historico",
+                f"San Lorenzo {chapter_title} {category} {target_name} foto historica",
+                f"San Lorenzo {target_name} {chapter_title} plantel partido festejo",
+            ]
 
         queries = self.ensure_unique_queries(raw_candidates, max_queries)
         i = 1
@@ -193,17 +206,26 @@ class QueryBuilderAgent:
         if sticker_ids is not None and not isinstance(sticker_ids, list):
             sticker_ids = [str(sticker_ids)]
 
+        chapter_mode = bool(payload.get("chapter_mode", False))
+        chapter_ids = payload.get("chapter_ids")
+        if chapter_ids is not None and not isinstance(chapter_ids, list):
+            chapter_ids = [str(chapter_ids)]
+
         stickers = self.load_stickers(sticker_ids=sticker_ids)
+        if chapter_ids is not None:
+            chapter_id_set = {str(item) for item in chapter_ids if str(item).strip()}
+            if chapter_id_set:
+                stickers = [row for row in stickers if str(row.get("chapter_id")) in chapter_id_set]
         if not stickers:
             if sticker_ids:
                 raise ValueError("No stickers found for selected sticker_ids.")
+            if chapter_ids:
+                raise ValueError("No stickers found for selected chapter_ids.")
             raise ValueError("No stickers found. Primero ejecuta python main.py plan")
-        if not sticker_ids and len(stickers) != 600:
-            raise ValueError(f"Expected 600 stickers, found {len(stickers)}.")
 
         all_queries: list[dict[str, str]] = []
         for sticker in stickers:
-            all_queries.extend(self.build_queries_for_sticker(sticker, max_queries))
+            all_queries.extend(self.build_queries_for_sticker(sticker, max_queries, chapter_mode=chapter_mode))
 
         expected_total = len(stickers) * max_queries
         if len(all_queries) != expected_total:
@@ -239,6 +261,7 @@ class QueryBuilderAgent:
             "status": "ok",
             "message": "Local queries generated.",
             "stickers_count": len(stickers),
+            "chapter_mode": chapter_mode,
             "queries_per_sticker": max_queries,
             "generated_queries": len(all_queries),
             "total_queries_in_db": total_in_db,
