@@ -62,6 +62,14 @@ python main.py build-sticker-candidates --provider auto --limit 20
 
 Nunca saltar directamente de discovery a descarga sin evaluacion/preflight/review, salvo que el comando existente lo controle explicitamente.
 
+Para el flujo explicito pedido por el usuario tipo "buscar en Google Images San Lorenzo 1908, despues 1909...":
+
+```bash
+python main.py collect-google-years --query-prefix "San Lorenzo" --start-year 1908 --end-year 2026 --limit-per-year 50 --persistent-profile .chrome-google-images
+```
+
+Este comando es el camino oficial para la recoleccion directa por año. Usa manifest `output/raw/google-images/manifest.jsonl` para resume/dedupe y no pasa por SQLite/review/preflight.
+
 ## Principios duros
 
 - No descargar imagenes durante discovery/search.

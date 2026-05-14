@@ -141,3 +141,21 @@ def test_query_builder_can_target_specific_stickers(tmp_path: Path) -> None:
     assert result["generated_queries"] == 10
     assert len(rows) == 10
     assert {row["sticker_id"] for row in rows} == set(target_ids)
+
+
+def test_query_builder_chapter_mode_uses_stronger_terms(tmp_path: Path) -> None:
+    _, _, stickers_csv, queries_csv, sqlite_path = _setup_curated_workspace(tmp_path)
+    sticker_rows = _read_csv(stickers_csv)
+    agent = QueryBuilderAgent(
+        db_path=sqlite_path,
+        stickers_csv_path=stickers_csv,
+        output_csv_path=queries_csv,
+    )
+    result = agent.run({"sticker_ids": [sticker_rows[0]["sticker_id"]], "chapter_mode": True, "max_queries": 6})
+    rows = _read_csv(queries_csv)
+    queries = [row["query"].casefold() for row in rows]
+
+    assert result["generated_queries"] == 6
+    assert any("cicl" in query for query in queries)
+    assert any("cuerv" in query for query in queries)
+    assert any("boedo" in query for query in queries)

@@ -1,26 +1,2 @@
 route_id,query_id,sticker_id,provider,priority,status,reason,created_at,updated_at
-R-Q-SL-18-008-01-general-web,Q-SL-18-008-01,SL-18-008,general_web,2,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:59.624728+00:00
-R-Q-SL-18-008-01-image-search,Q-SL-18-008-01,SL-18-008,image_search,1,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:57.099577+00:00
-R-Q-SL-18-008-01-local-folder,Q-SL-18-008-01,SL-18-008,local_folder,4,skipped,no_results,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.576192+00:00
-R-Q-SL-18-008-01-webpage,Q-SL-18-008-01,SL-18-008,webpage,3,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.560141+00:00
-R-Q-SL-18-008-01-wikimedia,Q-SL-18-008-01,SL-18-008,wikimedia,5,skipped,no_candidates_after_parse;tried_queries:4,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:11.646041+00:00
-R-Q-SL-18-008-02-general-web,Q-SL-18-008-02,SL-18-008,general_web,2,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:59.624728+00:00
-R-Q-SL-18-008-02-image-search,Q-SL-18-008-02,SL-18-008,image_search,1,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:57.099577+00:00
-R-Q-SL-18-008-02-local-folder,Q-SL-18-008-02,SL-18-008,local_folder,4,skipped,no_results,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.576192+00:00
-R-Q-SL-18-008-02-webpage,Q-SL-18-008-02,SL-18-008,webpage,3,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.560141+00:00
-R-Q-SL-18-008-02-wikimedia,Q-SL-18-008-02,SL-18-008,wikimedia,5,skipped,no_results;tried_queries:10,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:11.646041+00:00
-R-Q-SL-18-008-03-general-web,Q-SL-18-008-03,SL-18-008,general_web,2,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:59.624728+00:00
-R-Q-SL-18-008-03-image-search,Q-SL-18-008-03,SL-18-008,image_search,1,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:57.099577+00:00
-R-Q-SL-18-008-03-local-folder,Q-SL-18-008-03,SL-18-008,local_folder,4,skipped,no_results,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.576192+00:00
-R-Q-SL-18-008-03-webpage,Q-SL-18-008-03,SL-18-008,webpage,3,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.560141+00:00
-R-Q-SL-18-008-03-wikimedia,Q-SL-18-008-03,SL-18-008,wikimedia,5,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:11.646041+00:00
-R-Q-SL-18-008-04-general-web,Q-SL-18-008-04,SL-18-008,general_web,2,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:59.624728+00:00
-R-Q-SL-18-008-04-image-search,Q-SL-18-008-04,SL-18-008,image_search,1,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:57.099577+00:00
-R-Q-SL-18-008-04-local-folder,Q-SL-18-008-04,SL-18-008,local_folder,4,skipped,no_results,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.576192+00:00
-R-Q-SL-18-008-04-webpage,Q-SL-18-008-04,SL-18-008,webpage,3,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.560141+00:00
-R-Q-SL-18-008-04-wikimedia,Q-SL-18-008-04,SL-18-008,wikimedia,5,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:11.646041+00:00
-R-Q-SL-18-008-05-general-web,Q-SL-18-008-05,SL-18-008,general_web,2,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:59.624728+00:00
-R-Q-SL-18-008-05-image-search,Q-SL-18-008-05,SL-18-008,image_search,1,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:29:57.099577+00:00
-R-Q-SL-18-008-05-local-folder,Q-SL-18-008-05,SL-18-008,local_folder,4,skipped,no_results,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.576192+00:00
-R-Q-SL-18-008-05-webpage,Q-SL-18-008-05,SL-18-008,webpage,3,skipped,no_results;tried_queries:1,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:02.560141+00:00
-R-Q-SL-18-008-05-wikimedia,Q-SL-18-008-05,SL-18-008,wikimedia,5,failed,http_error:429,2026-05-11T14:29:54.003358+00:00,2026-05-11T14:30:11.646041+00:00
+R-Q-SL-13-001-01-wikimedia-dedupe,Q-SL-13-001-01,SL-13-001,wikimedia,1,routed,candidates_found:1;executed_query:San Lorenzo,now,2026-05-14T00:47:56.076200+00:00

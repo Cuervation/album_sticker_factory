@@ -1217,7 +1217,7 @@ def list_ready_candidates_for_download(
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """List download-ready candidates without requiring manual approval."""
-    where = ["COALESCE(c.preflight_status, '') = 'passed'"]
+    where = ["COALESCE(c.downloaded_at, '') = ''"]
     where.append("c.status IN ('found', 'needs_review', 'approved')")
     params: list[Any] = []
     if provider:

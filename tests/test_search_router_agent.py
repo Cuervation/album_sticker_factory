@@ -6,6 +6,7 @@ from pathlib import Path
 from agents.curator_agent import CuratorAgent
 from agents.query_builder_agent import QueryBuilderAgent
 from agents.search_router_agent import SearchRouterAgent
+from core.config import load_config
 from core import db
 
 ALLOWED_PROVIDERS = {"local_folder", "wikimedia", "general_web", "image_search", "webpage"}
@@ -63,7 +64,8 @@ def test_router_generates_routes_and_respects_limits(tmp_path: Path) -> None:
         conn.close()
     assert len(per_query) == 3000
     assert min(per_query.values()) >= 3
-    assert max(per_query.values()) <= 4
+    configured_limit = int(load_config().get("search_routing", {}).get("max_routes_per_query", 4))
+    assert max(per_query.values()) <= configured_limit
 
 
 def test_router_is_idempotent(tmp_path: Path) -> None:

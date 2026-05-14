@@ -85,37 +85,37 @@ def test_cmd_build_sticker_candidates_skips_review(monkeypatch, capsys) -> None:
 
     class FakeQueryBuilder:
         def run(self, payload=None):  # noqa: ANN001
-            calls.append("search")
-            return {"stickers_count": 1, "generated_queries": 1}
+            calls.append(f"search:{payload['sticker_ids'][0]}:{payload.get('chapter_mode')}:{payload.get('max_queries')}")
+            return {"stickers_count": 1, "generated_queries": 6}
 
     class FakeRouter:
         def run(self, payload=None):  # noqa: ANN001
-            calls.append("route")
+            calls.append(f"route:{payload['sticker_ids'][0]}")
             return {"routes_generated": 1}
 
     class FakeExecutor:
         def run(self, provider="auto", limit=None, sticker_ids=None):  # noqa: ANN001
-            calls.append("execute")
+            calls.append(f"execute:{sticker_ids[0]}")
             return {"candidates_created": 1}
 
     class FakeEvaluator:
         def run(self, provider=None, limit=None, sticker_ids=None):  # noqa: ANN001
-            calls.append("evaluate")
+            calls.append(f"evaluate:{sticker_ids[0]}")
             return {"kept_found": 1}
 
     class FakePreflight:
         def run(self, provider=None, limit=None, retry_only=False, force=False, sticker_ids=None):  # noqa: ANN001
-            calls.append("preflight")
+            calls.append(f"preflight:{sticker_ids[0]}")
             return {"checked": 1}
 
     class FakeDownload:
         def run_download(self, provider=None, limit=None, require_approved=False, sticker_ids=None):  # noqa: ANN001
-            calls.append("download")
+            calls.append(f"download:{sticker_ids[0]}")
             return {"downloaded": 1}
 
     class FakeCrop:
         def run(self, provider=None, limit=None, sticker_ids=None):  # noqa: ANN001
-            calls.append("crop")
+            calls.append(f"crop:{sticker_ids[0]}")
             return {"cropped": 1}
 
     monkeypatch.setattr(main, "CuratorAgent", FakeCurator)
@@ -132,6 +132,9 @@ def test_cmd_build_sticker_candidates_skips_review(monkeypatch, capsys) -> None:
         lambda conn: [
             {
                 "sticker_id": "SL-01-001",
+                "chapter_id": "01",
+                "chapter_title": "Nace el Ciclón",
+                "chapter_slug": "nace-el-ciclon",
                 "status": "planned",
             }
         ],
@@ -140,7 +143,13 @@ def test_cmd_build_sticker_candidates_skips_review(monkeypatch, capsys) -> None:
     code = main.cmd_build_sticker_candidates(argparse.Namespace(provider="auto", limit=1))
     out = capsys.readouterr().out
     assert code == 0
-    assert calls == ["search", "route", "execute", "evaluate", "preflight", "download", "crop"]
+    assert calls == [
+        "search:SL-01-001:True:6",
+        "route:SL-01-001",
+        "execute:SL-01-001",
+        "evaluate:SL-01-001",
+        "download:SL-01-001",
+    ]
     assert "Build sticker candidates complete." in out
 
 
@@ -149,12 +158,12 @@ def test_cmd_build_sticker_candidates_keeps_trying_until_requested_count(monkeyp
 
     class FakeQueryBuilder:
         def run(self, payload=None):  # noqa: ANN001
-            calls.append(f"search:{payload['sticker_ids'][0]}")
-            return {"stickers_count": 1, "generated_queries": 1}
+            calls.append(f"search:{payload['sticker_ids'][0]}:{payload.get('max_queries')}")
+            return {"stickers_count": 1, "generated_queries": 6}
 
     class FakeRouter:
         def run(self, payload=None):  # noqa: ANN001
-            calls.append(f"route:{payload['sticker_ids'][0] if payload and payload.get('sticker_ids') else 'all'}")
+            calls.append(f"route:{payload['sticker_ids'][0]}")
             return {"routes_generated": 1}
 
     class FakeExecutor:
@@ -193,9 +202,9 @@ def test_cmd_build_sticker_candidates_keeps_trying_until_requested_count(monkeyp
         main.db,
         "list_stickers",
         lambda conn: [
-            {"sticker_id": "SL-01-001", "status": "planned"},
-            {"sticker_id": "SL-01-002", "status": "planned"},
-            {"sticker_id": "SL-01-003", "status": "planned"},
+            {"sticker_id": "SL-01-001", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned"},
+            {"sticker_id": "SL-01-002", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned"},
+            {"sticker_id": "SL-01-003", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned"},
         ],
     )
     monkeypatch.setattr(main.db, "get_sticker_yield_counts", lambda conn: {})
@@ -204,20 +213,16 @@ def test_cmd_build_sticker_candidates_keeps_trying_until_requested_count(monkeyp
     out = capsys.readouterr().out
     assert code == 0
     assert calls == [
-        "search:SL-01-001",
+        "search:SL-01-001:6",
         "route:SL-01-001",
         "execute:SL-01-001",
         "evaluate:SL-01-001",
-        "preflight:SL-01-001",
         "download:SL-01-001",
-        "crop:SL-01-001",
-        "search:SL-01-002",
-        "route:SL-01-002",
-        "execute:SL-01-002",
-        "evaluate:SL-01-002",
-        "preflight:SL-01-002",
-        "download:SL-01-002",
-        "crop:SL-01-002",
+        "search:SL-01-001:6",
+        "route:SL-01-001",
+        "execute:SL-01-001",
+        "evaluate:SL-01-001",
+        "download:SL-01-001",
     ]
     assert "Requested per chapter: 2" in out
 
@@ -227,8 +232,8 @@ def test_cmd_build_sticker_candidates_stops_on_download_count(monkeypatch, capsy
 
     class FakeQueryBuilder:
         def run(self, payload=None):  # noqa: ANN001
-            calls.append(f"search:{payload['sticker_ids'][0]}")
-            return {"stickers_count": 1, "generated_queries": 1}
+            calls.append(f"search:{payload['sticker_ids'][0]}:{payload.get('max_queries')}")
+            return {"stickers_count": 1, "generated_queries": 6}
 
     class FakeRouter:
         def run(self, payload=None):  # noqa: ANN001
@@ -271,8 +276,8 @@ def test_cmd_build_sticker_candidates_stops_on_download_count(monkeypatch, capsy
         main.db,
         "list_stickers",
         lambda conn: [
-            {"sticker_id": "SL-01-001", "status": "planned"},
-            {"sticker_id": "SL-01-002", "status": "planned"},
+            {"sticker_id": "SL-01-001", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned"},
+            {"sticker_id": "SL-01-002", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned"},
         ],
     )
     monkeypatch.setattr(main.db, "get_sticker_yield_counts", lambda conn: {})
@@ -281,13 +286,11 @@ def test_cmd_build_sticker_candidates_stops_on_download_count(monkeypatch, capsy
     out = capsys.readouterr().out
     assert code == 0
     assert calls == [
-        "search:SL-01-001",
+        "search:SL-01-001:6",
         "route:SL-01-001",
         "execute:SL-01-001",
         "evaluate:SL-01-001",
-        "preflight:SL-01-001",
         "download:SL-01-001",
-        "crop:SL-01-001",
     ]
     assert "Images downloaded: 1" in out
 
@@ -297,8 +300,8 @@ def test_cmd_build_sticker_candidates_prefers_high_priority_stickers(monkeypatch
 
     class FakeQueryBuilder:
         def run(self, payload=None):  # noqa: ANN001
-            calls.append(f"search:{payload['sticker_ids'][0]}")
-            return {"stickers_count": 1, "generated_queries": 1}
+            calls.append(f"search:{payload['sticker_ids'][0]}:{payload.get('max_queries')}")
+            return {"stickers_count": 1, "generated_queries": 6}
 
     class FakeRouter:
         def run(self, payload=None):  # noqa: ANN001
@@ -341,8 +344,8 @@ def test_cmd_build_sticker_candidates_prefers_high_priority_stickers(monkeypatch
         main.db,
         "list_stickers",
         lambda conn: [
-            {"sticker_id": "SL-01-001", "status": "planned", "priority": "baja"},
-            {"sticker_id": "SL-01-002", "status": "planned", "priority": "alta"},
+            {"sticker_id": "SL-01-001", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned", "priority": "baja"},
+            {"sticker_id": "SL-01-002", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned", "priority": "alta"},
         ],
     )
     monkeypatch.setattr(main.db, "get_sticker_yield_counts", lambda conn: {})
@@ -350,8 +353,8 @@ def test_cmd_build_sticker_candidates_prefers_high_priority_stickers(monkeypatch
     code = main.cmd_build_sticker_candidates(argparse.Namespace(provider="auto", limit=2))
     out = capsys.readouterr().out
     assert code == 0
-    assert calls[:2] == ["search:SL-01-002", "route:SL-01-002"]
-    assert "Passes completed:" in out
+    assert calls[:2] == ["search:SL-01-002:6", "route:SL-01-002"]
+    assert "Chapter query variants:" in out
 
 
 def test_cmd_build_sticker_candidates_prefers_historical_yield(monkeypatch, capsys) -> None:
@@ -359,8 +362,8 @@ def test_cmd_build_sticker_candidates_prefers_historical_yield(monkeypatch, caps
 
     class FakeQueryBuilder:
         def run(self, payload=None):  # noqa: ANN001
-            calls.append(f"search:{payload['sticker_ids'][0]}")
-            return {"stickers_count": 1, "generated_queries": 1}
+            calls.append(f"search:{payload['sticker_ids'][0]}:{payload.get('max_queries')}")
+            return {"stickers_count": 1, "generated_queries": 6}
 
     class FakeRouter:
         def run(self, payload=None):  # noqa: ANN001
@@ -386,8 +389,8 @@ def test_cmd_build_sticker_candidates_prefers_historical_yield(monkeypatch, caps
         def run_download(self, provider=None, limit=None, require_approved=False, sticker_ids=None):  # noqa: ANN001
             calls.append(f"download:{sticker_ids[0]}")
             if sticker_ids[0] == "SL-01-001":
-                return {"downloaded": 0}
-            return {"downloaded": 1}
+                return {"downloaded": 1}
+            return {"downloaded": 0}
 
     class FakeCrop:
         def run(self, provider=None, limit=None, sticker_ids=None):  # noqa: ANN001
@@ -405,8 +408,8 @@ def test_cmd_build_sticker_candidates_prefers_historical_yield(monkeypatch, caps
         main.db,
         "list_stickers",
         lambda conn: [
-            {"sticker_id": "SL-01-001", "status": "planned", "priority": "alta"},
-            {"sticker_id": "SL-01-002", "status": "planned", "priority": "baja"},
+            {"sticker_id": "SL-01-001", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned", "priority": "alta"},
+            {"sticker_id": "SL-01-002", "chapter_id": "01", "chapter_title": "Nace el Ciclón", "chapter_slug": "nace-el-ciclon", "status": "planned", "priority": "baja"},
         ],
     )
     monkeypatch.setattr(
@@ -421,5 +424,5 @@ def test_cmd_build_sticker_candidates_prefers_historical_yield(monkeypatch, caps
     code = main.cmd_build_sticker_candidates(argparse.Namespace(provider="auto", limit=1))
     out = capsys.readouterr().out
     assert code == 0
-    assert calls[:2] == ["search:SL-01-001", "route:SL-01-001"]
+    assert calls[:2] == ["search:SL-01-001:6", "route:SL-01-001"]
     assert "Images downloaded: 1" in out

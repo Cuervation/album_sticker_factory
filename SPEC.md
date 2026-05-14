@@ -11,6 +11,7 @@ Construir una herramienta local para planificar, rutear y ejecutar de forma cont
 - `execute-routes`: ejecucion de `local_folder` (offline) y `wikimedia` (descubrimiento URL).
 - `evaluate-candidates`: evaluacion por metadata (sin descarga).
 - `build-sticker-candidates`: flujo automatico principal sin validacion manual.
+- `collect-google-years`: flujo explicito de recoleccion Google Images por año, para el caso operativo "San Lorenzo 1908, 1909..." solicitado por el usuario.
 - `review-candidates` y `apply-reviews`: revision manual local opcional / legacy.
 - `download-ready`: descarga controlada de candidatos tecnicamente validos sin approval manual.
 - `crop-ready`: recorte square final y manifiesto de stickers.
@@ -24,6 +25,10 @@ Construir una herramienta local para planificar, rutear y ejecutar de forma cont
 - Scraping general web.
 - Descarga remota de imagenes.
 - Deploy / cloud.
+
+Excepcion operativa actual:
+- `collect-google-years` puede usar navegador local/Playwright y descargar resultados de Google Images cuando el usuario lo pide explicitamente.
+- Ese flujo queda fuera del pipeline legacy de candidatos/review y debe registrar manifest de descarga para trazabilidad/resume.
 
 ## 4) Reglas duras
 - Sistema 100% local.
@@ -62,8 +67,9 @@ Construir una herramienta local para planificar, rutear y ejecutar de forma cont
 13. `download-ready --provider auto --limit N`
 14. `crop-ready --provider auto --limit N`
 15. `build-sticker-candidates --provider auto --limit N`
-16. `download-approved --provider wikimedia --limit N`
-17. etapas legacy: review/apply-reviews
+16. `collect-google-years --query-prefix "San Lorenzo" --start-year 1908 --end-year 2026 --limit-per-year N`
+17. `download-approved --provider wikimedia --limit N`
+18. etapas legacy: review/apply-reviews
 
 ## 6) Estados permitidos
 ### Stickers

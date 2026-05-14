@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import re
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -119,8 +120,39 @@ class QueryBuilderAgent:
                 break
         return unique
 
+    def _extract_year_candidates(self, text: str) -> list[str]:
+        """Extract ordered unique year candidates from free text."""
+        years: list[str] = []
+        seen: set[str] = set()
+        for match in re.findall(r"(?:19|20)\d{2}", str(text or "")):
+            if match in seen:
+                continue
+            seen.add(match)
+            years.append(match)
+        return years
+
+    def _build_year_sweep(self, start_year: int = 1908, end_year: int | None = None, offset: int = 0) -> list[str]:
+        """Build an ordered year sweep, optionally rotated by offset."""
+        final_year = int(end_year or date.today().year)
+        if final_year < start_year:
+            return []
+        years = [str(year) for year in range(start_year, final_year + 1)]
+        if not years:
+            return []
+        rotation = offset % len(years) if offset else 0
+        if rotation:
+            years = years[rotation:] + years[:rotation]
+        return years
+
     def build_queries_for_sticker(
-        self, sticker: dict[str, Any], max_queries: int, *, chapter_mode: bool = False
+        self,
+        sticker: dict[str, Any],
+        max_queries: int,
+        *,
+        chapter_mode: bool = False,
+        year_start: int = 1908,
+        year_end: int | None = None,
+        year_offset: int = 0,
     ) -> list[dict[str, str]]:
         """Build query rows for a single sticker."""
         sticker_id = str(sticker["sticker_id"])
@@ -132,8 +164,9 @@ class QueryBuilderAgent:
         search_hint = str(sticker.get("search_hint", "")).strip()
 
         chapter_focus = f"{chapter_title} {search_hint}" if chapter_mode else f"{target_name} {chapter_title} {search_hint}"
-        year_tokens = re.findall(r"(?:19|20)\d{2}(?:/\d{4})?", chapter_focus)
-        year_hint = year_tokens[0] if year_tokens else ""
+        year_candidates = self._extract_year_candidates(chapter_focus)
+        year_sweep = self._build_year_sweep(start_year=year_start, end_year=year_end, offset=year_offset)
+        year_hint = year_candidates[0] if year_candidates else ""
         terms = CATEGORY_TERMS.get(category, ["foto", "imagen", "archivo historico", "San Lorenzo"])
 
         if chapter_mode:
@@ -141,12 +174,21 @@ class QueryBuilderAgent:
                 f"San Lorenzo {chapter_title} foto",
                 f"San Lorenzo de Almagro {chapter_title} archivo historico",
                 f"San Lorenzo {chapter_title} imagen",
-                f"San Lorenzo {chapter_title} {terms[0]}",
-                f"San Lorenzo {chapter_title} {terms[1]}",
+                f"San Lorenzo {chapter_title} Ciclon",
+                f"San Lorenzo {chapter_title} cuervos",
+                f"San Lorenzo {chapter_title} Boedo",
                 f"San Lorenzo {chapter_title} {year_hint} archivo historico",
                 f"San Lorenzo {chapter_title} {category} foto historica",
                 f"San Lorenzo {chapter_title} {target_name}",
             ]
+            for year in year_sweep:
+                raw_candidates.extend(
+                    [
+                        f"San Lorenzo {chapter_title} {year} foto",
+                        f"San Lorenzo de Almagro {chapter_title} {year} archivo historico",
+                        f"San Lorenzo {chapter_title} {year} imagen",
+                    ]
+                )
         else:
             raw_candidates = [
                 search_hint,
@@ -162,16 +204,17 @@ class QueryBuilderAgent:
         queries = self.ensure_unique_queries(raw_candidates, max_queries)
         i = 1
         while len(queries) < max_queries:
+            year_pool = year_sweep if year_sweep else (year_candidates if year_candidates else [year_hint])
+            year_variant = year_pool[(i - 1) % len(year_pool)]
             fallback = (
                 f"San Lorenzo {target_name} {chapter_title} "
-                f"{terms[(i - 1) % len(terms)]} archivo historico {i:02d}"
+                f"{year_variant} {terms[(i - 1) % len(terms)]} archivo historico {i:02d}"
             )
             fallback_normalized = self.normalize_query(fallback)
             queries = self.ensure_unique_queries(queries + [fallback_normalized], max_queries)
             i += 1
             if i > 40:
                 raise RuntimeError(f"Could not generate {max_queries} unique queries for {sticker_id}.")
-
         query_rows: list[dict[str, str]] = []
         sticker_parts = sticker_id.split("-")
         if len(sticker_parts) != 3:
@@ -202,11 +245,20 @@ class QueryBuilderAgent:
             raise ValueError("pipeline.max_queries_per_sticker must be a positive integer.")
 
         payload = payload or {}
+        requested_max_queries = payload.get("max_queries")
+        if requested_max_queries is not None:
+            max_queries = int(requested_max_queries)
+            if max_queries <= 0:
+                raise ValueError("payload.max_queries must be a positive integer.")
         sticker_ids = payload.get("sticker_ids")
         if sticker_ids is not None and not isinstance(sticker_ids, list):
             sticker_ids = [str(sticker_ids)]
 
         chapter_mode = bool(payload.get("chapter_mode", False))
+        year_start = int(payload.get("year_start", 1908) or 1908)
+        year_end = payload.get("year_end")
+        year_end = int(year_end) if year_end is not None else None
+        year_offset = int(payload.get("year_offset", 0) or 0)
         chapter_ids = payload.get("chapter_ids")
         if chapter_ids is not None and not isinstance(chapter_ids, list):
             chapter_ids = [str(chapter_ids)]
@@ -225,7 +277,16 @@ class QueryBuilderAgent:
 
         all_queries: list[dict[str, str]] = []
         for sticker in stickers:
-            all_queries.extend(self.build_queries_for_sticker(sticker, max_queries, chapter_mode=chapter_mode))
+            all_queries.extend(
+                self.build_queries_for_sticker(
+                    sticker,
+                    max_queries,
+                    chapter_mode=chapter_mode,
+                    year_start=year_start,
+                    year_end=year_end,
+                    year_offset=year_offset,
+                )
+            )
 
         expected_total = len(stickers) * max_queries
         if len(all_queries) != expected_total:
